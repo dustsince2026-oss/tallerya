@@ -155,7 +155,11 @@ primero) → aviso → panel con 1 solicitud, 1 no leída, stats con 1 aviso
 2. Subir todo el contenido de `~/workspace/tallerya-v1/` a la rama `main`
    (sin la carpeta `data/` — está en `.gitignore`).
 3. Verificar que `server.js` quedó en la **raíz** del repo (Vercel lo
-   usa como entrypoint, igual que OnlyClick).
+   usa como entrypoint, igual que OnlyClick) y que `vercel.json` también
+   quedó en la raíz — SIN `vercel.json` Vercel despliega solo archivos
+   estáticos y las rutas `/api/*` dan 404 (pasó en el primer deploy
+   2026-11-19: la página cargaba pero la API no respondía; se arregló
+   subiendo `vercel.json` y redesplegando).
 
 ### 2. Supabase (proyecto nuevo, separado de OnlyClick)
 1. En supabase.com, crear proyecto nuevo llamado **TallerYa**.
