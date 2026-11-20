@@ -312,7 +312,7 @@ test('get-shop de Google: detalle por Place Details', async () => {
     assert.equal(d.data.shop.nombre, 'Hojalatería y Pintura San Marcos');
     assert.equal(d.data.shop.source, 'google');
     assert.equal(d.data.shop.enApp, false);
-    assert.equal(d.data.shop.esp, 'Hojalatería y pintura');
+    assert.equal(d.data.shop.esp, 'Carrocería/hojalatería y pintura');
     assert.deepEqual(d.data.reviews, []);
   } finally {
     restore();
