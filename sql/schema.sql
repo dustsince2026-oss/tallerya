@@ -131,3 +131,14 @@ create index if not exists idx_offers_workshop on offers (workshop_id, id desc);
 -- Bucket de fotos (crear en Storage > Buckets, nombre "fotos", privado):
 -- las fotos adjuntas a solicitudes viven ahí; solo las ven el conductor
 -- que las mandó y el taller que las recibió (lo verifica el backend).
+
+-- Permisos (OBLIGATORIO, 2026-11-19): sin estos GRANT la API devuelve
+-- "permission denied for table users" y la búsqueda devuelve 0 talleres,
+-- aunque la clave service_role sea la correcta. Las tablas se crean como
+-- postgres y service_role NO hereda los permisos DML por defecto en este
+-- proyecto: hay que otorgarlos explícito. RLS está desactivado, así que
+-- estos GRANT son el único control de acceso a nivel base.
+grant select, insert, update, delete on all tables in schema public to service_role;
+grant usage, select on all sequences in schema public to service_role;
+alter default privileges in schema public grant select, insert, update, delete on tables to service_role;
+alter default privileges in schema public grant usage, select on sequences to service_role;
