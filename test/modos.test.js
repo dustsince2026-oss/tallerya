@@ -114,7 +114,8 @@ test('modo a domicilio: tarjeta con el costo y aviso con costo, sin URGENTE', as
   assert.ok(resTxt.includes('$250'));
   t.setUser({ id: 9, email: 'prueba@test.mx' });
   await t.notifyShop(0);
-  assert.equal(captured.notify.descripcion, 'Asistencia mecánica a domicilio (costo por la visita: $250 MXN)');
+  // A domicilio el aviso lleva el domicilio (sin GPS, es la ubicación actual).
+  assert.equal(captured.notify.descripcion, 'Asistencia mecánica a domicilio (costo por la visita: $250 MXN) · Domicilio: Mi ubicación actual');
 });
 
 test('modo yo conduzco: subtítulo con el modo y aviso sin URGENTE ni costo', async () => {
@@ -154,7 +155,7 @@ test('modo llantera a domicilio: tarjeta con el costo y aviso con costo, sin URG
   assert.ok(resTxt.includes('$200'));
   t.setUser({ id: 9, email: 'prueba@test.mx' });
   await t.notifyShop(0);
-  assert.equal(captured.notify.descripcion, 'Llantera a domicilio (costo por la visita: $200 MXN)');
+  assert.equal(captured.notify.descripcion, 'Llantera a domicilio (costo por la visita: $200 MXN) · Domicilio: Mi ubicación actual');
   assert.equal(captured.notify.incident, 'llantera');
 });
 
