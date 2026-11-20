@@ -51,6 +51,7 @@ const ROUTES = {
   'invite-code-deactivate': 'invite-code-deactivate',
   'workshop-activate': 'activate-workshop',
   'pending-workshops': 'pending-workshops-list',
+  'grua-distancia': 'grua-distancia',
 };
 
 function readBody(req) {
