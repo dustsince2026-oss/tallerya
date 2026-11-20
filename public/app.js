@@ -12,6 +12,8 @@ let mecanicoModo = null; // cómo quiere la ayuda al no arrancar (ver MECANICO_M
 let llanteraModo = null; // cómo quiere la ayuda de llantera (ver LLANTERA_MODOS)
 let gruaKm = null;       // km del traslado de la grúa (recogida → destino)
 let gruaDestino = '';    // adónde se lleva el vehículo (texto del conductor)
+let gruaOrigen = 'gps';  // 'gps' = mi ubicación actual | 'manual' = dirección escrita
+let gruaOrigenTxt = 'Mi ubicación actual'; // dirección que se muestra y se manda al taller
 let results = [];
 let currentShop = null;
 let carroElegido = null;
@@ -209,6 +211,11 @@ INCIDENTS.forEach(inc => {
   grid.appendChild(b);
 });
 
+// Recogida de la grúa: los dos botones de opción se atan aquí (no con
+// onclick en el HTML, que jsdom no ejecuta en las pruebas).
+document.getElementById('btnOrigenGps').onclick = () => setOrigenGrua('gps');
+document.getElementById('btnOrigenManual').onclick = () => setOrigenGrua('manual');
+
 function pickIncident(inc) {
   if (inc.k === 'foquito') { show('p-foquito'); return; }
   incident = inc;
@@ -217,12 +224,47 @@ function pickIncident(inc) {
   llanteraModo = null;
   gruaKm = null;
   gruaDestino = '';
+  gruaOrigen = 'gps';
+  gruaOrigenTxt = 'Mi ubicación actual';
   // Al chocar, al no arrancar y en llantera primero se pregunta CÓMO
   // quiere la ayuda.
   if (inc.k === 'choque') { show('p-choque-modo'); return; }
   if (inc.k === 'noarranca') { show('p-mecanico-modo'); return; }
   if (inc.k === 'llantera') { show('p-llantera-modo'); return; }
   irADatos(inc);
+}
+
+// Recogida de la grúa: dos opciones. (1) Mi ubicación actual: el cuadro
+// se llena SOLO con tu dirección (se busca con Nominatim, gratis y sin
+// llave — el mismo servicio que calcula los km). (2) Escribir la
+// dirección: el cuadro se vacía y se escribe a mano; al buscar, esa
+// dirección se geocodifica para calcular los km. Con la llave de Google
+// Places (pendiente) la opción manual además sugerirá direcciones
+// mientras se escribe.
+async function setOrigenGrua(modo) {
+  gruaOrigen = modo;
+  document.getElementById('btnOrigenGps').classList.toggle('sel', modo === 'gps');
+  document.getElementById('btnOrigenManual').classList.toggle('sel', modo === 'manual');
+  const input = document.getElementById('dRecogida');
+  if (modo === 'manual') {
+    input.disabled = false;
+    input.value = '';
+    input.placeholder = 'Ej. Av. Reforma 123, Ensenada';
+    input.focus();
+    return;
+  }
+  input.disabled = true;
+  input.placeholder = 'Mi ubicación actual';
+  gruaOrigenTxt = 'Mi ubicación actual';
+  if (lat == null || lng == null) { input.value = 'Mi ubicación actual'; return; }
+  input.value = 'Buscando tu dirección…';
+  try {
+    const r = await api('/api/reverse-geocode', { method: 'POST', body: { lat, lng } });
+    input.value = r.direccion;
+    gruaOrigenTxt = r.direccion;
+  } catch (e) {
+    input.value = 'Mi ubicación actual';
+  }
 }
 
 function irADatos(inc) {
@@ -235,9 +277,9 @@ function irADatos(inc) {
   document.getElementById('gruaBox').style.display = (inc.k === 'grua') ? 'block' : 'none';
   if (inc.k === 'grua') {
     gruaKm = null; gruaDestino = '';
-    document.getElementById('dRecogida').value = 'Mi ubicación actual';
     document.getElementById('dDestino').value = '';
     document.getElementById('gruaDistancia').textContent = '';
+    setOrigenGrua('gps');
   }
   renderCarroPicker();
   show('p-datos');
@@ -428,6 +470,9 @@ function useLocation() {
       document.getElementById('locLine').textContent = '📍 Ubicación lista ✓';
       toast('Ubicación lista ✓');
       ponerMarcadorYo();
+      // Si está en la pantalla de la grúa con "Mi ubicación actual", el
+      // cuadro se llena solo con tu dirección.
+      if (incident && incident.k === 'grua' && gruaOrigen === 'gps') setOrigenGrua('gps');
       // Seguir tu punto en vivo mientras la app está abierta: si te
       // mueves, el punto azul del mapa se mueve contigo.
       if (watchId == null && navigator.geolocation.watchPosition) {
@@ -527,14 +572,24 @@ async function searchShops() {
   if (!incident) incident = INCIDENTS.find(i => i.k === 'otro');
   // Grúa: sin destino no hay traslado que calcular; y los km se
   // calculan ANTES de buscar, para que salgan en los resultados.
+  // El origen es el GPS o, si se escribió la dirección a mano, esa
+  // dirección (se geocodifica en el mismo llamado).
   if (incident.k === 'grua') {
     const destino = document.getElementById('dDestino').value.trim();
     if (!destino) { toast('Escribe adónde se lleva el vehículo.'); return; }
     gruaDestino = destino;
     gruaKm = null;
-    if (lat != null && lng != null) {
+    const body = { destino };
+    if (gruaOrigen === 'manual') {
+      const dir = document.getElementById('dRecogida').value.trim();
+      if (!dir) { toast('Escribe la dirección donde se recoge el vehículo.'); return; }
+      body.origenDireccion = dir;
+    } else if (lat != null && lng != null) {
+      body.origenLat = lat; body.origenLng = lng;
+    }
+    if (body.origenDireccion || body.origenLat != null) {
       try {
-        const d = await api('/api/grua-distancia', { method: 'POST', body: { origenLat: lat, origenLng: lng, destino } });
+        const d = await api('/api/grua-distancia', { method: 'POST', body });
         gruaKm = d.km;
         document.getElementById('gruaDistancia').textContent = 'Distancia del traslado: ' + Number(d.km).toFixed(1) + ' km';
       } catch (e) {
