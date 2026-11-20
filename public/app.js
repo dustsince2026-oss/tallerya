@@ -271,8 +271,13 @@ async function setOrigenGrua(modo) {
 }
 
 function irADatos(inc) {
-  document.getElementById('datosTitle').textContent = inc.label.replace(/^[^\s]+\s/, '') + ' — ¿Dónde estás?';
-  document.getElementById('datosNote').textContent = inc.datosNote;
+  // En los modos "yo conduzco el auto hasta el taller" NO se pide la
+  // ubicación del conductor: él lleva el carro, así que el botón de
+  // ubicación se esconde y la búsqueda va sin coordenadas.
+  const conduzco = esConduzco();
+  document.getElementById('locBox').style.display = conduzco ? 'none' : 'block';
+  document.getElementById('datosTitle').textContent = conduzco ? 'Tú llevas el carro al taller' : inc.label.replace(/^[^\s]+\s/, '') + ' — ¿Dónde estás?';
+  document.getElementById('datosNote').textContent = conduzco ? 'Te mostramos los talleres disponibles; tú eliges a cuál llevar tu carro.' : inc.datosNote;
   document.getElementById('buscarBtn').textContent = inc.buscar;
   document.getElementById('otroBox').style.display = (inc.k === 'otro') ? 'block' : 'none';
   // La grúa pide los dos lugares: dónde se recoge el vehículo y adónde
@@ -302,6 +307,16 @@ function esDomicilio() {
   return (incident && incident.k === 'choque' && choqueModo && choqueModo.k === 'domicilio')
     || (incident && incident.k === 'noarranca' && mecanicoModo && mecanicoModo.k === 'domicilio')
     || (incident && incident.k === 'llantera' && llanteraModo && llanteraModo.k === 'domicilio');
+}
+
+// ¿El modo elegido es "yo conduzco el auto hasta el taller"? (choque
+// o mecánico). En esos casos NO se pide la ubicación del conductor:
+// él lleva el carro, así que la búsqueda va sin coordenadas. La
+// llantera "más cercana" NO es conduzco: ahí sí se ocupa la ubicación
+// para saber cuál queda más cerca.
+function esConduzco() {
+  return (incident && incident.k === 'choque' && choqueModo && choqueModo.k === 'conduzco')
+    || (incident && incident.k === 'noarranca' && mecanicoModo && mecanicoModo.k === 'conduzco');
 }
 
 // Domicilio del servicio: igual que la recogida de la grúa. Por
