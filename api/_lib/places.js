@@ -26,6 +26,7 @@ const QUERY_TEXT = {
   hojalateria: 'carrocería y hojalatería en Ensenada',
   grua: 'grúas en Ensenada',
   electrico: 'taller eléctrico automotriz en Ensenada',
+  llantera: 'llantera en Ensenada',
 };
 // Especialidad que se muestra en la ficha, según el tipo buscado.
 const ESP_POR_TIPO = {
@@ -33,6 +34,7 @@ const ESP_POR_TIPO = {
   hojalateria: 'Carrocería/hojalatería y pintura',
   grua: 'Grúas y arrastre',
   electrico: 'Eléctrico automotriz',
+  llantera: 'Llantera',
 };
 
 function timeoutMs() {
