@@ -89,11 +89,12 @@ test('registro de taller: pendiente hasta que el dueño lo aprueba', async () =>
   assert.equal(r.data.user.approved, false, 'el taller nuevo NO está aprobado');
   workshopToken = r.data.token; workshopUserId = r.data.user.id; workshopId = r.data.workshop.id;
 
-  // Sin aprobar: NO aparece en los resultados (solo el de Google).
+  // Sin aprobar: NO aparece en los resultados. Sin llave de Google
+  // Places no hay talleres de Google (ya no hay datos de ejemplo).
   const s = await callQ('search', { incident: 'choque' });
-  assert.ok(s.data.shops.length >= 1);
-  assert.ok(s.data.shops.every(x => x.source === 'google'), 'sin aprobar solo sale Google');
-  assert.equal(s.data.shops[0].nombre, 'Hojalatería Los Pinos');
+  assert.equal(s.data.shops.length, 0);
+  assert.equal(s.data.total, 0);
+  assert.equal(s.data.googleDisponible, false);
 
   // El dueño lo aprueba (el correo del dueño es OWNER_EMAIL).
   const o = await call('register', { name: 'Orlan', email: 'dueno@tallerya.mx', password: 'secreto1', role: 'driver' });
@@ -102,19 +103,35 @@ test('registro de taller: pendiente hasta que el dueño lo aprueba', async () =>
   const ap = await call('approve-workshop', { userId: workshopUserId, aprobado: true }, ownerToken);
   assert.equal(ap.data.user.approved, true);
 
-  // Aprobado: el taller con la app sale PRIMERO, antes que Google.
+  // Aprobado: el taller con la app sale PRIMERO (sin Google, no hay llave).
   const s2 = await callQ('search', { incident: 'choque' });
   assert.equal(s2.data.shops[0].source, 'app');
   assert.equal(s2.data.shops[0].nombre, 'Hojalatería y Pintura El Faro');
   assert.equal(s2.data.appCount, 1);
+  assert.equal(s2.data.total, 1);
+  assert.equal(s2.data.googleDisponible, false);
 
   // Un conductor no puede aprobar talleres.
   await expectErr(call('approve-workshop', { userId: workshopUserId, aprobado: false }, driverToken), 403);
 });
 
 test('búsqueda por incidente: grúa habla de grúas, noarranca acepta eléctrico', async () => {
+  // Sin llave de Google y sin grúas registradas: no hay resultados.
+  const g0 = await callQ('search', { incident: 'grua' });
+  assert.equal(g0.data.resTitle, 'Grúas cerca de ti');
+  assert.equal(g0.data.shops.length, 0);
+  assert.equal(g0.data.googleDisponible, false);
+
+  // Registrar una grúa aprobada para probar el filtro.
+  const gr = await call('register', {
+    name: 'Grúas', email: 'gruas@taller.mx', password: 'secreto1', role: 'workshop',
+    tallerNombre: 'Grúas El Faro', especialidad: 'Grúas y arrastre',
+    zona: 'Toda la ciudad', whatsapp: '646 333 4455', plan: 'Basico',
+  });
+  await call('approve-workshop', { userId: gr.data.user.id, aprobado: true }, ownerToken);
   const g = await callQ('search', { incident: 'grua' });
   assert.equal(g.data.resTitle, 'Grúas cerca de ti');
+  assert.ok(g.data.shops.length >= 1);
   assert.ok(g.data.shops.every(s => s.tipos.includes('grua')));
 
   // Registrar un eléctrico aprobado para probar el filtro noarranca.
@@ -175,10 +192,10 @@ test('panel del taller: servicios, ofertas, perfil y pausa', async () => {
   const stats = await call('get-panel', {}, workshopToken);
   assert.equal(stats.data.stats.avisos7d, 1, 'un aviso esta semana');
 
-  // Pausar: el taller desaparece de los resultados.
+  // Pausar: el taller desaparece de los resultados (y sin llave no hay Google).
   await call('set-paused', { pausado: true }, workshopToken);
   const s2 = await callQ('search', { incident: 'choque' });
-  assert.ok(s2.data.shops.every(x => x.source === 'google'), 'pausado no aparece');
+  assert.equal(s2.data.shops.length, 0, 'pausado no aparece');
   await call('set-paused', { pausado: false }, workshopToken);
   const s3 = await callQ('search', { incident: 'choque' });
   assert.equal(s3.data.shops[0].source, 'app', 'al volver aparece otra vez');
