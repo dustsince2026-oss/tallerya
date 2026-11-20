@@ -586,26 +586,52 @@ sigue funcionando (solo talleres con la app + el aviso).
   llave. Verificado en vivo: logo 512 RGBA, esquina alpha 0.
   Commits bea13b2/a0f453b/c38e59d. Script:
   `~/workspace/your_files/make_logo_tallerya_transparente.py`.
-- **Foquitos con IA (pedido de Orlan ~01:54, CONSTRUIDO, frente
-  pendiente subir en vivo):** al tomar la foto del tablero, Gemini
-  marca solos los foquitos prendidos (misma IA y mismo patrón que
-  la lectura de dorsales de OnlyClick). Nueva ruta POST
-  /api/focos-leer-foto { dataBase64, mimeType } → { ok, focos: [ids] };
-  solo devuelve ids de la lista conocida (nunca inventa); sin
-  GEMINI_API_KEY devuelve no-key y queda la lista manual; la foto
-  no se guarda. Frente: al elegir la foto sale "Leyendo la foto con
-  inteligencia artificial…" y se marcan las casillas; el conductor
-  revisa y corrige antes de "Ver qué significa". Cambios:
-  handlers.js (geminiVisionJson + leerFocosFoto + ruta), server.js
-  (ROUTES), index.html (línea de estado + nota actualizada),
-  app.js (leerFotoTablero), test/foquitos-ia.test.js (10 pruebas).
-  Suite 108/108. **OJO — el backend YA ESTÁ EN VIVO sin querer:**
-  el deploy del domicilio subió handlers.js (commit 2766e7b) con el
-  código de foquitos incluido porque el archivo se reexpidió después
-  de construirlo; la ruta está dormida (nadie la llama sin el frente
-  y sin la llave). La llave GEMINI_API_KEY la está poniendo el
-  navegador (crear en AI Studio + Vercel + redeploy) por pedido de
-  Orlan ~02:02.
+- **Foquitos con IA (pedido de Orlan ~01:54, DESPLEGADO EN VIVO
+  2026-11-20 ~02:11 y VERIFICADO con curl por Bibi):** al tomar la
+  foto del tablero, Gemini marca solos los foquitos prendidos
+  (misma IA y mismo patrón que la lectura de dorsales de
+  OnlyClick). Nueva ruta POST /api/focos-leer-foto { dataBase64,
+  mimeType } → { ok, focos: [ids] }; solo devuelve ids de la lista
+  conocida (nunca inventa); sin GEMINI_API_KEY devuelve no-key y
+  queda la lista manual; la foto no se guarda. Frente: al elegir
+  la foto sale "Leyendo la foto con inteligencia artificial…" y se
+  marcan las casillas; el conductor revisa y corrige antes de "Ver
+  qué significa". Cambios: handlers.js (geminiVisionJson +
+  leerFocosFoto + ruta, EN VIVO desde el commit 2766e7b del deploy
+  del domicilio), server.js (ROUTES, EN VIVO desde 9f5b25e),
+  index.html (línea de estado + nota actualizada, commit 5fe08c2),
+  app.js (leerFotoTablero, commit 03444a6),
+  test/foquitos-ia.test.js (10 pruebas, commit 4e10f4d), README
+  (commit 2b9c219). Suite 108/108. Verificado en vivo con curl:
+  home 200, app.js vivo con el mismo md5 que la carpeta,
+  fotoIALine presente, ruta viva. **PROBLEMA EN VIVO ~02:11: la
+  llave GEMINI_API_KEY nueva (creada en AI Studio por el navegador)
+  SÍ está guardada en Vercel, pero Gemini responde 402 "Your
+  prepayment credits are depleted" — el proyecto de esa llave no
+  tiene créditos. El frente cae al modo manual ("No se pudo leer
+  la foto sola") y la pantalla sigue jalando a mano. ARREGLO: usar
+  la GEMINI_API_KEY de OnlyClick (esa sí lee dorsales, tiene cuota)
+  en vez de la nueva — el navegador la copia de las env vars de
+  OnlyClick en Vercel a las de TallerYa y redespliega.**
+- **"Yo conduzco" sin ubicación (pedido de Orlan ~02:11, CONSTRUIDO,
+  pendiente subir en vivo):** en los modos donde el conductor lleva
+  el carro al taller (Choqué "yo conduzco" y No arranca "puedo
+  manejar") se QUITÓ el botón "Usar mi ubicación": la pantalla ya no
+  pide dónde está y la búsqueda va sin coordenadas (el aviso al
+  taller tampoco lleva coordenadas). El título cambia a "Tú llevas
+  el carro al taller". La llantera "más cercana" SÍ sigue pidiendo
+  ubicación (si no, no se sabe cuál queda más cerca) y el domicilio
+  también (su ubicación por defecto es la actual). Cambios:
+  index.html (el botón y la línea ahora van en #locBox),
+  app.js (esConduzco + irADatos esconde el cuadro), test
+  /conduzco.test.js (6 pruebas nuevas). Suite 114/114.
+- **Icono cuadrado con fondo negro (pedido de Orlan ~02:16, CONSTRUIDO,
+  pendiente subir en vivo):** icon-192.png e icon-512.png ahora son
+  cuadrados de fondo negro sólido con el pin dorado (como los iconos
+  de las demás apps del teléfono). Se componen del logo actual sobre
+  negro: el cuadrado redondeado se funde con el fondo. logo.png NO
+  se tocó: sigue transparente para el encabezado de la app y el
+  favicon. Verificado: esquinas (0,0,0) y pin intacto.
 
 - El flujo actual de grúa solo pide dónde está el carro (un solo
   lugar, por GPS); NO hay dos cuadritos de recoger/llevar. Sí se puede
