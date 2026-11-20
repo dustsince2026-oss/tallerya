@@ -73,17 +73,17 @@ test('grúa muestra los dos lugares en datos (recogida prellenada, destino vací
   assert.equal(doc.getElementById('gruaDistancia').textContent, '');
 });
 
-test('recogida tiene dos opciones; por defecto Mi ubicación actual', async () => {
+test('recogida tiene UN solo botón de ubicación; el cuadro dice Mi ubicación actual', async () => {
   const { document: doc } = await makeDom('ok');
   incBtns(doc)[2].click(); // Necesito grúa
-  assert.ok(doc.getElementById('btnOrigenGps').classList.contains('sel'));
-  assert.ok(!doc.getElementById('btnOrigenManual').classList.contains('sel'));
+  assert.equal(doc.getElementById('btnOrigenGps'), null, 'no debe haber un segundo botón de ubicación');
+  assert.ok(doc.getElementById('btnOrigenManual'), 'el enlace para escribir a mano sí existe');
   const input = doc.getElementById('dRecogida');
   assert.equal(input.disabled, true);
   assert.equal(input.value, 'Mi ubicación actual');
 });
 
-test('picar Escribir la dirección habilita el cuadro para escribir a mano', async () => {
+test('picar Escribir la dirección a mano habilita el cuadro para escribir', async () => {
   const { document: doc } = await makeDom('ok');
   incBtns(doc)[2].click();
   doc.getElementById('btnOrigenManual').click();
@@ -91,8 +91,6 @@ test('picar Escribir la dirección habilita el cuadro para escribir a mano', asy
   assert.equal(input.disabled, false);
   assert.equal(input.value, '');
   assert.ok(input.placeholder.includes('Av. Reforma'));
-  assert.ok(doc.getElementById('btnOrigenManual').classList.contains('sel'));
-  assert.ok(!doc.getElementById('btnOrigenGps').classList.contains('sel'));
 });
 
 test('con GPS, el cuadro se llena solo con tu dirección actual', async () => {
