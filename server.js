@@ -49,6 +49,8 @@ const ROUTES = {
   'invite-code-create': 'invite-code-create',
   'invite-codes-list': 'invite-codes-list',
   'invite-code-deactivate': 'invite-code-deactivate',
+  'workshop-activate': 'activate-workshop',
+  'pending-workshops': 'pending-workshops-list',
 };
 
 function readBody(req) {
