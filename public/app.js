@@ -470,9 +470,17 @@ function useLocation() {
       document.getElementById('locLine').textContent = '📍 Ubicación lista ✓';
       toast('Ubicación lista ✓');
       ponerMarcadorYo();
-      // Si está en la pantalla de la grúa con "Mi ubicación actual", el
-      // cuadro se llena solo con tu dirección.
-      if (incident && incident.k === 'grua' && gruaOrigen === 'gps') setOrigenGrua('gps');
+      // Si está en la pantalla de la grúa, el botón SIEMPRE vuelve a
+      // poner tu ubicación actual en el cuadro — aunque antes lo
+      // hubieras borrado o cambiado a escribir a mano. Antes solo se
+      // llenaba si el modo seguía en 'gps', así que borrarlo y volver
+      // a picar el botón ya no lo ponía (reporte de Orlan 2026-11-20).
+      if (incident && incident.k === 'grua') setOrigenGrua('gps');
+      // Mostrar la dirección escrita abajo del botón para que el
+      // conductor se asegure de que sí se leyó su ubicación (pide
+      // Orlan 2026-11-20). La pantalla de datos es la misma para
+      // todos los incidentes, así que sale en todas.
+      mostrarDireccionActual();
       // Seguir tu punto en vivo mientras la app está abierta: si te
       // mueves, el punto azul del mapa se mueve contigo.
       if (watchId == null && navigator.geolocation.watchPosition) {
@@ -488,6 +496,17 @@ function useLocation() {
     },
     { timeout: 8000 }
   );
+}
+function mostrarDireccionActual() {
+  const line = document.getElementById('locLine');
+  if (!line || lat == null || lng == null) return;
+  api('/api/reverse-geocode', { method: 'POST', body: { lat, lng } })
+    .then(r => {
+      line.innerHTML = '📍 Ubicación lista ✓<br><b style="color:#e8eef4">' + esc(r.direccion) + '</b>';
+    })
+    .catch(() => {
+      // Sin dirección escrita (sin internet), queda el "Ubicación lista ✓".
+    });
 }
 function readFileAsDataUrl(file) {
   return new Promise((resolve, reject) => {
