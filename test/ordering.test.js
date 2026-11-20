@@ -15,7 +15,8 @@ test('tipos de especialidad del formulario', () => {
   assert.deepEqual(tiposDeEspecialidad('Mecánica'), ['mecanico', 'electrico']);
   assert.deepEqual(tiposDeEspecialidad('Eléctrico automotriz'), ['electrico']);
   assert.deepEqual(tiposDeEspecialidad('Grúas'), ['grua']);
-  assert.deepEqual(tiposDeEspecialidad('Varias'), ['hojalateria', 'mecanico', 'electrico', 'grua']);
+  assert.deepEqual(tiposDeEspecialidad('Llantera'), ['llantera']);
+  assert.deepEqual(tiposDeEspecialidad('Varias'), ['hojalateria', 'mecanico', 'electrico', 'grua', 'llantera']);
 });
 
 test('orden: talleres con la app primero, por plan, luego calificación, luego distancia', () => {
