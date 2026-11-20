@@ -590,50 +590,105 @@ async function fotoFile(store, user, query) {
   return { status: 200, data: null, file };
 }
 
+// Nominatim (OpenStreetMap, gratis, sin llave) con timeout de 8 s.
+// Sirve para geocodificar direcciones y para la dirección inversa
+// (coordenadas → dirección escrita). También se usa para la ruta OSRM
+// (mismo patrón: JSON con timeout).
+async function fetchJson(url, headers) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const r = await Promise.race([
+      fetch(url, { headers, signal: ctrl.signal }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Tardó demasiado.')), 8000)),
+    ]);
+    if (!r.ok) throw new Error('Respondió ' + r.status + '.');
+    return r.json();
+  } finally { clearTimeout(timer); }
+}
+
+const NOMINATIM_UA = { 'User-Agent': 'TallerYa/1.0 (contacto: dust.since2026@gmail.com)' };
+
+// Dirección escrita → coordenadas (Nominatim). null si no la encuentra.
+// Se le agrega ", Ensenada" al final: la app es de Ensenada y sin la
+// ciudad Nominatim puede agarrar la misma calle en Mexicali (la Av.
+// Reforma de Mexicali le gana a la de Ensenada sin ese filtro).
+async function geocodificarDireccion(texto) {
+  const geo = await fetchJson(
+    'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mx&q=' + encodeURIComponent(texto + ', Ensenada, Baja California, México'),
+    NOMINATIM_UA);
+  if (!geo || !geo.length) return null;
+  return { lat: parseFloat(geo[0].lat), lng: parseFloat(geo[0].lon), display: geo[0].display_name };
+}
+
+// Dirección corta y legible desde los campos de Nominatim, ej.
+// "Av. Ignacio L. Rayón 273, Independencia, Ensenada".
+function direccionCorta(addr) {
+  if (!addr) return null;
+  const partes = [];
+  const calle = [addr.road, addr.house_number].filter(Boolean).join(' ');
+  if (calle) partes.push(calle);
+  const col = addr.suburb || addr.neighbourhood || addr.quarter;
+  if (col) partes.push(col);
+  const cd = addr.city || addr.town || addr.village || addr.county;
+  if (cd) partes.push(cd);
+  return partes.length ? partes.join(', ') : null;
+}
+
+// POST /api/reverse-geocode { lat, lng } → { direccion }
+// Convierte tu ubicación actual en dirección escrita, para llenar solo
+// el cuadro de recogida de la grúa.
+async function reverseGeocode(b) {
+  const { lat, lng } = b || {};
+  if (lat == null || lng == null || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng))) throw err(400, 'Falta tu ubicación.');
+  let r;
+  try {
+    r = await fetchJson(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`, NOMINATIM_UA);
+  } catch (e) {
+    throw err(502, 'No pudimos buscar tu dirección ahorita. Inténtalo de nuevo.');
+  }
+  const corta = direccionCorta(r && r.address);
+  const direccion = corta || (r && r.display_name ? String(r.display_name).split(',').slice(0, 3).join(',').trim() : null);
+  if (!direccion) throw err(400, 'No encontré tu dirección.');
+  return { status: 200, data: { direccion } };
+}
+
 // ---------------- Grúa: distancia del traslado ----------------
 // La grúa cobra por el traslado, así que el conductor escribe adónde
 // se lleva el vehículo y la app calcula los km de ruta real (no en
 // línea recta): el destino se geocodifica con Nominatim (OpenStreetMap,
 // gratis, sin llave) y la ruta se calcula con OSRM (gratis, sin llave).
+// El origen puede ser tu GPS (origenLat/origenLng) o una dirección
+// escrita a mano (origenDireccion, que se geocodifica igual).
 // Si alguno falla, el error se le muestra al conductor y la búsqueda
 // sigue sin los km (no se bloquea la ayuda).
 async function gruaDistancia(b) {
-  const { origenLat, origenLng, destino } = b || {};
-  if (origenLat == null || origenLng == null) throw err(400, 'Falta tu ubicación de recogida.');
+  const { origenLat, origenLng, origenDireccion, destino } = b || {};
   const dest = String(destino || '').trim();
   if (!dest) throw err(400, 'Escribe adónde se lleva el vehículo.');
-  const fetchJson = async (url, headers) => {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 8000);
-    try {
-      const r = await Promise.race([
-        fetch(url, { headers, signal: ctrl.signal }),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Tardó demasiado.')), 8000)),
-      ]);
-      if (!r.ok) throw new Error('Respondió ' + r.status + '.');
-      return r.json();
-    } finally { clearTimeout(timer); }
-  };
-  let geo;
-  try {
-    geo = await fetchJson(
-      'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mx&q=' + encodeURIComponent(dest + ', Baja California, México'),
-      { 'User-Agent': 'TallerYa/1.0 (contacto: dust.since2026@gmail.com)' });
-  } catch (e) {
-    throw err(502, 'No pudimos buscar esa dirección ahorita. Inténtalo de nuevo.');
+  let oLat = origenLat, oLng = origenLng;
+  if (origenDireccion && String(origenDireccion).trim()) {
+    let geo;
+    try { geo = await geocodificarDireccion(String(origenDireccion).trim()); }
+    catch (e) { throw err(502, 'No pudimos buscar esa dirección ahorita. Inténtalo de nuevo.'); }
+    if (!geo) throw err(400, 'No encontré la dirección de recogida. Escríbela con calle y colonia, ej. Av. Reforma 232, Independencia.');
+    oLat = geo.lat; oLng = geo.lng;
   }
-  if (!geo || !geo.length) throw err(400, 'No encontré esa dirección. Escríbela con calle y colonia, ej. Av. Reforma 232, Independencia.');
-  const destLat = parseFloat(geo[0].lat), destLng = parseFloat(geo[0].lon);
+  if (oLat == null || oLng == null) throw err(400, 'Falta tu ubicación de recogida.');
+  let destGeo;
+  try { destGeo = await geocodificarDireccion(dest); }
+  catch (e) { throw err(502, 'No pudimos buscar esa dirección ahorita. Inténtalo de nuevo.'); }
+  if (!destGeo) throw err(400, 'No encontré esa dirección. Escríbela con calle y colonia, ej. Av. Reforma 232, Independencia.');
   let route;
   try {
     route = await fetchJson(
-      `https://router.project-osrm.org/route/v1/driving/${origenLng},${origenLat};${destLng},${destLat}?overview=false`);
+      `https://router.project-osrm.org/route/v1/driving/${oLng},${oLat};${destGeo.lng},${destGeo.lat}?overview=false`);
   } catch (e) {
     throw err(502, 'No pudimos calcular la distancia ahorita. Inténtalo de nuevo.');
   }
   if (!route.routes || !route.routes.length) throw err(400, 'No hay ruta entre esos dos puntos.');
   const km = Math.round(route.routes[0].distance / 100) / 10;
-  return { status: 200, data: { km, destino: geo[0].display_name, destinoLat: destLat, destinoLng: destLng } };
+  return { status: 200, data: { km, destino: destGeo.display, destinoLat: destGeo.lat, destinoLng: destGeo.lng } };
 }
 
 // ---------------- Dispatch ----------------
@@ -668,6 +723,7 @@ async function dispatch(route, req) {
     case 'activate-workshop': return activateWorkshop(store, user, b);
     case 'pending-workshops-list': return listPendingWorkshops(store, user);
     case 'grua-distancia': return gruaDistancia(b);
+    case 'reverse-geocode': return reverseGeocode(b);
     case 'foto-file': return fotoFile(store, user, req.query || {});
     default: throw err(404, 'Ruta no encontrada.');
   }
