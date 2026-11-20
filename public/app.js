@@ -42,6 +42,19 @@ function refreshIcons() {
 function sinEmoji(s) {
   return String(s || '').replace(/^[^\p{L}\p{N}]+/u, '');
 }
+// Ojito de la contraseña: alterna entre ver (text) y ocultar (password).
+// Solo cambia el type del mismo input: lo escrito no se borra ni se pierde.
+function toggleVerPass() {
+  const input = document.getElementById('aPass');
+  const btn = document.getElementById('btnVerPass');
+  if (!input || !btn) return;
+  const ver = input.type === 'password';
+  input.type = ver ? 'text' : 'password';
+  btn.innerHTML = '<i data-lucide="' + (ver ? 'eye-off' : 'eye') + '"></i>';
+  btn.setAttribute('aria-label', ver ? 'Ocultar contraseña' : 'Mostrar contraseña');
+  btn.setAttribute('title', ver ? 'Ocultar contraseña' : 'Mostrar contraseña');
+  refreshIcons();
+}
 const INCIDENTS = [
   { k: 'choque', icon: 'car-front', label: 'Choqué', sub: 'Carrocería/hojalatería', tipo: 'hojalateria',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres de carrocería/hojalatería cerca de ti',
@@ -1326,6 +1339,9 @@ function initCarrusel() {
   if (eCancel) eCancel.onclick = () => { document.getElementById('emergModal').style.display = 'none'; };
   const eModal = document.getElementById('emergModal');
   if (eModal) eModal.onclick = (ev) => { if (ev.target === eModal) eModal.style.display = 'none'; };
+  // Ojito de la contraseña (atado por JS, como el 911).
+  const vPass = document.getElementById('btnVerPass');
+  if (vPass) vPass.onclick = toggleVerPass;
   await loadFocos();
   if (getToken()) {
     try {
