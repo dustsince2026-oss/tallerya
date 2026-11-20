@@ -78,32 +78,36 @@ test('perfil del conductor: máximo 3 carros', async () => {
   await expectErr(call('get-driver-profile', {}), 401);
 });
 
-test('registro de taller: pendiente hasta que el dueño lo aprueba', async () => {
-  const r = await call('register', {
+async function inviteCode(note) {
+  const r = await call('invite-code-create', { note: note || '' }, ownerToken);
+  return r.data.codigo.code;
+}
+
+test('registro de taller: solo con código de invitación, entra aprobado', async () => {
+  // Primero el dueño (el correo del dueño es OWNER_EMAIL).
+  const o = await call('register', { name: 'Orlan', email: 'dueno@tallerya.mx', password: 'secreto1', role: 'driver' });
+  ownerToken = o.data.token;
+  assert.equal(o.data.user.isOwner, true);
+
+  const base = {
     name: 'El Faro', email: 'faro@taller.mx', password: 'secreto1', role: 'workshop',
     phone: '646 111 2233', tallerNombre: 'Hojalatería y Pintura El Faro',
     especialidad: 'Hojalatería y pintura', zona: 'Valle Verde, Ensenada',
     whatsapp: '646 111 2233', tieneGrua: false, aDomicilio: true, plan: 'Destacado',
-  });
+  };
+  // Sin código no hay registro de taller.
+  await expectErr(call('register', { ...base }), 400);
+  await expectErr(call('register', { ...base, inviteCode: 'TALLER-ZZZZZZ' }), 400);
+
+  // Con código válido entra aprobado (verificado en persona) y aparece
+  // en los resultados sin ningún paso extra. Sin llave de Google Places
+  // no hay talleres de Google (ya no hay datos de ejemplo).
+  const code = await inviteCode('Hojalatería El Faro');
+  const r = await call('register', { ...base, inviteCode: code });
   assert.equal(r.status, 201);
-  assert.equal(r.data.user.approved, false, 'el taller nuevo NO está aprobado');
+  assert.equal(r.data.user.approved, true, 'con código el taller ya está verificado');
   workshopToken = r.data.token; workshopUserId = r.data.user.id; workshopId = r.data.workshop.id;
 
-  // Sin aprobar: NO aparece en los resultados. Sin llave de Google
-  // Places no hay talleres de Google (ya no hay datos de ejemplo).
-  const s = await callQ('search', { incident: 'choque' });
-  assert.equal(s.data.shops.length, 0);
-  assert.equal(s.data.total, 0);
-  assert.equal(s.data.googleDisponible, false);
-
-  // El dueño lo aprueba (el correo del dueño es OWNER_EMAIL).
-  const o = await call('register', { name: 'Orlan', email: 'dueno@tallerya.mx', password: 'secreto1', role: 'driver' });
-  ownerToken = o.data.token;
-  assert.equal(o.data.user.isOwner, true);
-  const ap = await call('approve-workshop', { userId: workshopUserId, aprobado: true }, ownerToken);
-  assert.equal(ap.data.user.approved, true);
-
-  // Aprobado: el taller con la app sale PRIMERO (sin Google, no hay llave).
   const s2 = await callQ('search', { incident: 'choque' });
   assert.equal(s2.data.shops[0].source, 'app');
   assert.equal(s2.data.shops[0].nombre, 'Hojalatería y Pintura El Faro');
@@ -111,8 +115,20 @@ test('registro de taller: pendiente hasta que el dueño lo aprueba', async () =>
   assert.equal(s2.data.total, 1);
   assert.equal(s2.data.googleDisponible, false);
 
+  // El código ya se usó: no sirve otra vez.
+  await expectErr(call('register', { ...base, email: 'otro@taller.mx', inviteCode: code }), 400);
+
   // Un conductor no puede aprobar talleres.
   await expectErr(call('approve-workshop', { userId: workshopUserId, aprobado: false }, driverToken), 403);
+
+  // Respaldo: el dueño sí puede quitarle y devolverle la aprobación.
+  await call('approve-workshop', { userId: workshopUserId, aprobado: false }, ownerToken);
+  const s3 = await callQ('search', { incident: 'choque' });
+  assert.equal(s3.data.shops.length, 0, 'desaprobado no aparece');
+  const ap = await call('approve-workshop', { userId: workshopUserId, aprobado: true }, ownerToken);
+  assert.equal(ap.data.user.approved, true);
+  const s4 = await callQ('search', { incident: 'choque' });
+  assert.equal(s4.data.shops.length, 1, 'al volver a aprobar reaparece');
 });
 
 test('búsqueda por incidente: grúa habla de grúas, noarranca acepta eléctrico', async () => {
@@ -122,25 +138,25 @@ test('búsqueda por incidente: grúa habla de grúas, noarranca acepta eléctric
   assert.equal(g0.data.shops.length, 0);
   assert.equal(g0.data.googleDisponible, false);
 
-  // Registrar una grúa aprobada para probar el filtro.
+  // Registrar una grúa aprobada para probar el filtro (con código).
   const gr = await call('register', {
     name: 'Grúas', email: 'gruas@taller.mx', password: 'secreto1', role: 'workshop',
     tallerNombre: 'Grúas El Faro', especialidad: 'Grúas y arrastre',
     zona: 'Toda la ciudad', whatsapp: '646 333 4455', plan: 'Basico',
+    inviteCode: await inviteCode('Grúas El Faro'),
   });
-  await call('approve-workshop', { userId: gr.data.user.id, aprobado: true }, ownerToken);
   const g = await callQ('search', { incident: 'grua' });
   assert.equal(g.data.resTitle, 'Grúas cerca de ti');
   assert.ok(g.data.shops.length >= 1);
   assert.ok(g.data.shops.every(s => s.tipos.includes('grua')));
 
-  // Registrar un eléctrico aprobado para probar el filtro noarranca.
+  // Registrar un eléctrico aprobado para probar el filtro noarranca (con código).
   const e = await call('register', {
     name: 'Volt', email: 'volt@taller.mx', password: 'secreto1', role: 'workshop',
     tallerNombre: 'Eléctrico Automotriz Volt', especialidad: 'Eléctrico automotriz',
     zona: 'Valle Verde', whatsapp: '646 444 5566', plan: 'Destacado',
+    inviteCode: await inviteCode('Eléctrico Volt'),
   });
-  await call('approve-workshop', { userId: e.data.user.id, aprobado: true }, ownerToken);
   const n = await callQ('search', { incident: 'noarranca' });
   assert.ok(n.data.shops.some(s => s.nombre === 'Eléctrico Automotriz Volt'), 'noarranca incluye eléctricos');
   assert.ok(n.data.shops.every(s => s.tipos.includes('mecanico') || s.tipos.includes('electrico')));
