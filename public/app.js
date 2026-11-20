@@ -17,18 +17,15 @@ let focosSel = {};
 let FOCOS = [];
 
 const INCIDENTS = [
-  { k: 'choque', label: '🚗 Choqué', sub: 'Hojalatería y pintura', tipo: 'hojalateria',
-    buscar: 'Buscar taller ahora', resTitle: 'Talleres de hojalatería cerca de ti',
-    datosNote: 'Solo ocupamos esto para buscarte el taller de hojalatería más cercano.' },
+  { k: 'choque', label: '🚗 Choqué', sub: 'Carrocería/hojalatería y pintura · te dan el presupuesto', tipo: 'hojalateria',
+    buscar: 'Buscar taller ahora', resTitle: 'Talleres de carrocería/hojalatería cerca de ti',
+    datosNote: 'Solo ocupamos esto para buscarte el taller de carrocería/hojalatería más cercano.' },
   { k: 'noarranca', label: '🔧 No arranca', sub: 'Mecánico o eléctrico', tipo: 'mecanico',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte el taller más cercano.' },
   { k: 'grua', label: '🚛 Necesito grúa', sub: 'Arrastre al taller o a tu casa', tipo: 'grua',
     buscar: 'Buscar grúas cercanas', resTitle: 'Grúas cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte la grúa más cercana.' },
-  { k: 'presupuesto', label: '🎨 Presupuesto de hojalatería', sub: 'Un hojalatero te cotiza', tipo: 'hojalateria',
-    buscar: 'Buscar taller ahora', resTitle: 'Talleres de hojalatería cerca de ti',
-    datosNote: 'Solo ocupamos esto para buscarte el taller de hojalatería más cercano.' },
   { k: 'electrico', label: '⚡ Falla eléctrica', sub: 'Eléctrico automotriz', tipo: 'electrico',
     buscar: 'Buscar taller eléctrico', resTitle: 'Talleres eléctricos cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte el taller eléctrico más cercano.' },
@@ -376,7 +373,7 @@ function carroManual() {
 
 /* ---------- Pantalla 3: resultados ---------- */
 async function searchShops() {
-  if (!incident) incident = INCIDENTS[5];
+  if (!incident) incident = INCIDENTS.find(i => i.k === 'otro');
   const q = new URLSearchParams({ incident: incident.k });
   if (incident.k === 'foquito' && incident.tipo) q.set('tipo', incident.tipo);
   if (lat != null && lng != null) { q.set('lat', lat); q.set('lng', lng); }
@@ -636,7 +633,7 @@ function renderPanel(d) {
 
   const serv = document.getElementById('panelServicios');
   serv.innerHTML = '';
-  const servicios = d.servicios.length ? d.servicios : [{ nombre: 'Hojalatería', precio: '' }, { nombre: 'Pintura', precio: '' }, { nombre: 'Mecánica general', precio: '' }];
+  const servicios = d.servicios.length ? d.servicios : [{ nombre: 'Carrocería/hojalatería', precio: '' }, { nombre: 'Pintura', precio: '' }, { nombre: 'Mecánica general', precio: '' }];
   servicios.forEach((sv, i) => {
     serv.innerHTML += '<label>' + esc(sv.nombre) + '</label><input data-serv="' + i + '" data-nombre="' + esc(sv.nombre) + '" value="' + esc(sv.precio || '') + '" placeholder="Precio (ej. Desde $1,500)">';
   });
