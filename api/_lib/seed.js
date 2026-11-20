@@ -11,20 +11,24 @@
 // 'otro' acepta todos los tipos.
 // 'presupuesto' ya no tiene botón (se unió con 'choqué', que es lo mismo:
 // si chocaste necesitas el presupuesto del choque), pero se deja como
-// alias para que un cliente viejo no falle.
+// alias para que un cliente viejo no falle. Igual 'electrico': ya no
+// tiene botón propio (lo eléctrico ya lo cubre 'No arranca'), pero se
+// deja como alias porque el diagnóstico del foquito lo sigue usando.
 const INCIDENT_TYPES = {
   choque: ['hojalateria'],
   presupuesto: ['hojalateria'],
   noarranca: ['mecanico', 'electrico'],
   grua: ['grua'],
   electrico: ['electrico'],
-  otro: ['hojalateria', 'mecanico', 'electrico', 'grua'],
+  llantera: ['llantera'],
+  otro: ['hojalateria', 'mecanico', 'electrico', 'grua', 'llantera'],
   foquito: null, // el tipo lo elige el usuario tras el diagnóstico
 };
 
 const INCIDENT_LABELS = {
   choque: 'Choqué', noarranca: 'No arranca', grua: 'Necesito grúa',
   presupuesto: 'Presupuesto de hojalatería', electrico: 'Falla eléctrica',
+  llantera: 'Llantera',
   otro: 'Otro problema', foquito: 'Foquito del tablero',
 };
 
@@ -35,6 +39,7 @@ const INCIDENT_COPY = {
   grua: { buscar: 'Buscar grúas cercanas', resTitle: 'Grúas cerca de ti', datosNote: 'Solo ocupamos esto para buscarte la grúa más cercana.' },
   presupuesto: { buscar: 'Buscar taller ahora', resTitle: 'Talleres de carrocería/hojalatería cerca de ti', datosNote: 'Solo ocupamos esto para buscarte el taller de carrocería/hojalatería más cercano.' },
   electrico: { buscar: 'Buscar taller eléctrico', resTitle: 'Talleres eléctricos cerca de ti', datosNote: 'Solo ocupamos esto para buscarte el taller eléctrico más cercano.' },
+  llantera: { buscar: 'Buscar llanteras cercanas', resTitle: 'Llanteras cerca de ti', datosNote: 'Solo ocupamos esto para buscarte la llantera más cercana.' },
   otro: { buscar: 'Buscar taller ahora', resTitle: 'Talleres cerca de ti', datosNote: 'Descríbenos qué le pasa a tu carro para buscarte el taller adecuado.' },
   foquito: { buscar: 'Buscar taller ahora', resTitle: 'Talleres cerca de ti', datosNote: 'Solo ocupamos esto para buscarte el taller más cercano.' },
 };
