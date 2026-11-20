@@ -474,30 +474,44 @@ sigue funcionando (solo talleres con la app + el aviso).
   segundos y los puntitos dejan cambiar de imagen a mano.
 - Suite `test/carrusel.test.js` (jsdom, 3 tests): 3 imágenes con sus
   frases y 3 puntitos, picar un puntito cambia la imagen, las 3
-  existen en public/. **Suite total: 76/76.**
+  existen en public/. **Suite total: 85/85.**
 - Lección: el `setInterval` del carrusel dejaba colgado `npm test`
   (el proceso no terminaba); los 3 archivos jsdom ahora cierran su
   ventana con un hook `after()` y la suite vuelve a terminar en ~15 s.
 
 - **APROBADO por Orlan ~00:39 ("Sí, arma la grúa así") y CONSTRUIDO.**
   La pantalla de datos de la grúa ahora pide los dos lugares: (1)
-  "¿Dónde se recoge el vehículo?" (por defecto "Mi ubicación
-  actual", editable) y (2) "¿Adónde se lleva el vehículo?" (texto
-  libre, obligatorio — sin destino no busca). Al picar "Buscar grúas
-  cercanas", el servidor calcula los **km de ruta real** (no en línea
-  recta) y los muestra en la pantalla ("Distancia del traslado: X km")
-  y en el subtítulo de resultados ("Traslado: X km"); el aviso que le
-  llega a la grúa lleva los dos lugares y los km ("Necesito grúa ·
-  Recoger en: … · Llevar a: … (X km)").
+  "¿Dónde se recoge el vehículo?" — con DOS opciones: **"Mi ubicación
+  actual"** (el cuadro se llena SOLO con tu dirección, vía nueva ruta
+  `POST /api/reverse-geocode` con Nominatim, gratis y sin llave) o
+  **"Escribir la dirección"** (el cuadro se vacía y se escribe a mano;
+  al buscar, esa dirección se geocodifica y los km salen desde ahí,
+  así que los km YA NO necesitan GPS) — y (2) "¿Adónde se lleva el
+  vehículo?" (texto libre, obligatorio — sin destino no busca). Al
+  picar "Buscar grúas cercanas", el servidor calcula los **km de ruta
+  real** (no en línea recta) y los muestra en la pantalla ("Distancia
+  del traslado: X km") y en el subtítulo de resultados ("Traslado: X
+  km"); el aviso que le llega a la grúa lleva los dos lugares y los km
+  ("Necesito grúa · Recoger en: … · Llevar a: … (X km)").
 - El cálculo es **gratis y sin llave**: el destino se geocodifica con
   Nominatim (OpenStreetMap) y la ruta se calcula con OSRM
   (router.project-osrm.org), nueva ruta `POST /api/grua-distancia`
   (dispatch `grua-distancia`, server.js ROUTES). Si Nominatim/OSRM
   falla, se avisa en la pantalla y la búsqueda sigue sin los km (no
   se bloquea la ayuda); sin GPS no hay km pero sí búsqueda.
-- Suite `test/grua.test.js` (5 jsdom + 4 backend con fetch stubbeado):
+- **Lección (prueba real 2026-11-20 ~01:20):** sin ", Ensenada" en la
+  búsqueda, Nominatim geocodificó "Av. Reforma 232" a la Av. Reforma
+  de MEXICALI (253 km) — ahora `geocodificarDireccion` siempre agrega
+  ", Ensenada, Baja California, México". Prueba real tras el arreglo:
+  origen manual Av. Rayón 273 → Av. Reforma 232 = 2.0 km; origen GPS
+  (31.863141, -116.595902) → mismo destino = 2.9 km; reverse-geocode
+  de esas coordenadas = "Avenida Ignacio López Rayón, Independencia,
+  Ensenada".
+- Suite `test/grua.test.js` (10 jsdom + 8 backend con fetch stubbeado):
   dos campos, sin destino no busca, km en resultados y aviso, fallo
-  sin bloquear, sin GPS sin km. **Suite total: 73/73.**
+  sin bloquear, sin GPS sin km; dos opciones de recogida, auto-llenado
+  con la dirección, origen manual con km sin GPS, reverse-geocode y
+  origen manual en backend. **Suite total: 85/85.**
 - Prueba real 2026-11-20 ~00:41: servidor local + Nominatim/OSRM en
   vivo → Av. Reforma 232 desde Av. Rayón = **2.9 km** de ruta.
 
