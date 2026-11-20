@@ -7,6 +7,7 @@
 <title>TallerYa — Ayuda para tu carro, sin vueltas</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/logo.png">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
@@ -30,13 +31,13 @@
   .grid { display: flex; flex-direction: column; gap: 12px; }
   button.big {
     width: 100%; min-height: 76px; border: none; border-radius: 16px;
-    background: #1c3a5c; color: #fff; font-size: 21px; font-weight: 700;
+    background: rgba(245, 179, 1, .85); color: #1a1a1a; font-size: 21px; font-weight: 700;
     cursor: pointer; text-align: left; padding: 14px 18px; line-height: 1.2;
     box-shadow: 0 2px 0 #12263f;
   }
-  button.big small { display: block; font-size: 14px; font-weight: 400; color: #b9cde0; margin-top: 3px; }
-  button.big:active { background: #24486e; }
-  button.big.sel { outline: 3px solid #f5b301; background: #24486e; }
+  button.big small { display: block; font-size: 14px; font-weight: 400; color: #3a3a3a; margin-top: 3px; }
+  button.big:active { background: rgba(245, 179, 1, .95); }
+  button.big.sel { outline: 3px solid #1a1a1a; background: rgba(245, 179, 1, .95); }
   button.primary {
     width: 100%; min-height: 64px; border: none; border-radius: 16px;
     background: #f5b301; color: #1a1a1a; font-size: 20px; font-weight: 800;
@@ -147,13 +148,60 @@
     background: #1faa55; color: #fff; font-size: 16px; font-weight: 700;
     padding: 12px 18px; border-radius: 12px; display: none; max-width: 90%; text-align: center;
   }
+  /* Fondo con foto (inspiración: SafeCar; la foto es original de TallerYa) */
+  .hero {
+    background-image: linear-gradient(rgba(11,22,34,.80), rgba(11,22,34,.87)), url('/hero-taller.jpg');
+    background-size: cover; background-position: center 35%;
+    border-radius: 20px; padding: 18px 14px 22px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  }
+  /* Tarjetas y botones con más aire y sombra suave */
+  .card { box-shadow: 0 6px 18px rgba(0,0,0,.35); border-radius: 18px; }
+  button.big { box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  /* Carrusel del inicio: 3 imágenes que cambian solas, con frase */
+  .carrusel { margin-top: 18px; overflow: hidden; border-radius: 16px; }
+  .carrusel-track { display: flex; transition: transform .5s ease; }
+  .carrusel-slide { min-width: 100%; position: relative; }
+  .carrusel-slide img { width: 100%; height: 210px; object-fit: cover; display: block; }
+  .carrusel-frase {
+    position: absolute; left: 0; right: 0; bottom: 0;
+    padding: 28px 14px 10px;
+    background: linear-gradient(transparent, rgba(0,0,0,.78));
+    color: #f5b301; font-weight: 800; font-size: 19px;
+    text-shadow: 0 1px 3px rgba(0,0,0,.6);
+  }
+  .carrusel-puntos { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+  .carrusel-puntos button { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,.35); cursor: pointer; }
+  .carrusel-puntos button.sel { background: #f5b301; }
+  /* Mapa de resultados (Leaflet + OpenStreetMap, gratis y sin llave) */
+  #mapaResultados { height: 280px; border-radius: 16px; border: 1px solid #243850; margin-top: 12px; position: relative; z-index: 1; }
+  .pin-taller {
+    width: 26px; height: 26px; background: #f5b301; border: 2px solid #1a1a1a;
+    border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
+    box-shadow: 0 2px 8px rgba(0,0,0,.5);
+  }
+  .pin-taller::after {
+    content: ''; position: absolute; left: 7px; top: 7px; width: 8px; height: 8px;
+    background: #1a1a1a; border-radius: 50%;
+  }
+  .pin-yo {
+    width: 18px; height: 18px; background: #2f8cff; border: 3px solid #fff;
+    border-radius: 50%; box-shadow: 0 0 0 4px rgba(47,140,255,.35), 0 2px 8px rgba(0,0,0,.5);
+  }
+  .leaflet-popup-content-wrapper { border-radius: 12px; }
+  .leaflet-popup-content { font-family: inherit; font-size: 15px; line-height: 1.4; margin: 12px 14px; }
+  .leaflet-popup-content button.mini-btn {
+    margin-top: 8px; min-height: 44px; padding: 0 16px; border: none; border-radius: 10px;
+    background: #f5b301; color: #1a1a1a; font-size: 15px; font-weight: 800; cursor: pointer;
+  }
+  .leaflet-container { font-family: inherit; }
 </style>
 </head>
 <body>
 <div class="app">
 
   <!-- ============ ENTRAR / REGISTRO ============ -->
-  <section id="p-auth" class="screen active">
+  <section id="p-auth" class="screen active hero">
     <div class="logo"><img src="/logo.png" alt="TallerYa">Taller<span>Ya</span></div>
     <p class="tag">Ayuda para tu carro, sin vueltas.</p>
     <h1 id="authTitle">Entra a TallerYa</h1>
@@ -186,6 +234,7 @@
         <option>Mecánica</option>
         <option>Eléctrico automotriz</option>
         <option>Grúas</option>
+        <option>Llantera</option>
         <option>Varias</option>
       </select>
       <label>Zona que cubres</label>
@@ -216,7 +265,7 @@
   </section>
 
   <!-- ============ PANTALLA 1: INICIO ============ -->
-  <section id="p-home" class="screen">
+  <section id="p-home" class="screen hero">
     <div class="topbar">
       <div class="logo"><img src="/logo.png" alt="TallerYa">Taller<span>Ya</span></div>
       <button class="bell" id="bellBtn" onclick="openNotifs()" title="Avisos">🔔<span class="dot" id="bellDot" style="display:none;">0</span></button>
@@ -225,6 +274,14 @@
     <h1>¿Qué le pasó a tu carro?</h1>
     <p class="calm">Tranquilo. Pica lo que te pasó y te conectamos con un taller cerca de ti.</p>
     <div class="grid" id="incidentGrid"></div>
+    <div class="carrusel" id="carrusel">
+      <div class="carrusel-track" id="carruselTrack">
+        <div class="carrusel-slide"><img src="/carrusel-1.jpg" alt="Conductor con su carro descompuesto"><div class="carrusel-frase">Asistencia para tu vehículo</div></div>
+        <div class="carrusel-slide"><img src="/carrusel-2.jpg" alt="Mecánico profesional trabajando"><div class="carrusel-frase">Te asisten profesionales</div></div>
+        <div class="carrusel-slide"><img src="/carrusel-3.jpg" alt="Familia viajando tranquila en su carro"><div class="carrusel-frase">La mejor opción para tu vehículo</div></div>
+      </div>
+      <div class="carrusel-puntos" id="carruselPuntos"></div>
+    </div>
     <div class="links">
       <button class="link" onclick="openDriverProfile()">Mis datos y mi seguro</button>
       <button class="link" id="panelLink" onclick="openPanel()">Mi panel de taller</button>
@@ -234,6 +291,30 @@
     <p class="saved" id="savedLine"></p>
   </section>
 
+  <!-- ============ PANTALLA: ¿CÓMO QUIERES LA AYUDA? (solo Choqué) ============ -->
+  <section id="p-choque-modo" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>Choqué — ¿cómo quieres la ayuda?</h2>
+    <p class="calm">Pica lo que necesitas y te buscamos el taller.</p>
+    <div class="grid" id="choqueModos"></div>
+  </section>
+
+  <!-- ============ PANTALLA: ¿CÓMO QUIERES LA AYUDA? (solo No arranca) ============ -->
+  <section id="p-mecanico-modo" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>No arranca — ¿cómo quieres la ayuda?</h2>
+    <p class="calm">Pica lo que necesitas y te buscamos el taller.</p>
+    <div class="grid" id="mecanicoModos"></div>
+  </section>
+
+  <!-- ============ PANTALLA: ¿CÓMO QUIERES LA AYUDA? (solo Llantera) ============ -->
+  <section id="p-llantera-modo" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>Llantera — ¿cómo quieres la ayuda?</h2>
+    <p class="calm">Pica lo que necesitas y te buscamos la llantera.</p>
+    <div class="grid" id="llanteraModos"></div>
+  </section>
+
   <!-- ============ PANTALLA 2: UBICACIÓN Y DATOS ============ -->
   <section id="p-datos" class="screen">
     <button class="back" onclick="show('p-home')">← Volver</button>
@@ -241,6 +322,13 @@
     <p class="calm" id="datosNote">Solo ocupamos esto para buscarte el taller más cercano.</p>
     <button class="big" onclick="useLocation()">📍 Usar mi ubicación</button>
     <p class="muted" id="locLine" style="margin-top:10px;">Todavía no tenemos tu ubicación.</p>
+    <div id="gruaBox" style="display:none;">
+      <label>¿Dónde se recoge el vehículo?</label>
+      <input id="dRecogida" placeholder="Mi ubicación actual">
+      <label>¿Adónde se lleva el vehículo?</label>
+      <input id="dDestino" placeholder="Ej. Taller El Toro, Av. Reforma, Ensenada">
+      <p class="muted" id="gruaDistancia" style="margin-top:8px;"></p>
+    </div>
     <label>¿En qué carro te pasó?</label>
     <div class="grid" id="carroPicker"></div>
     <div id="carroManual" style="display:none;">
@@ -269,6 +357,8 @@
     <button class="back" onclick="show('p-datos')">← Volver</button>
     <h2 id="resTitle">Talleres cerca de ti</h2>
     <p class="calm" id="resSub"></p>
+    <div id="mapaResultados"></div>
+    <p class="muted" id="mapaNota" style="margin-top:8px;"></p>
     <p class="muted">Primero salen los talleres que ya tienen la app (te responden directo); después, los de Google.</p>
     <div id="resList"></div>
     <p class="muted center" id="googleNote" style="display:none; margin-top:14px;">Los talleres de Google se activan cuando se agregue la llave.</p>
@@ -420,6 +510,9 @@
     <input id="pDireccion" placeholder="Calle y número">
     <label>Servicios que haces (texto corto)</label>
     <textarea id="pServiciosTexto" placeholder="Ej. Carrocería/hojalatería, pintura, presupuestos a domicilio"></textarea>
+    <label>Costo por ir a atender fuera del taller (MXN)</label>
+    <input id="pCostoVisita" type="number" min="0" step="1" placeholder="Ej. 300">
+    <p class="muted">Aplica cuando el cliente pide presupuesto o asistencia fuera del taller: en el lugar del percance, a domicilio, o donde se quedó el carro. Cubre el servicio, el tiempo y el traslado. Si lo dejas vacío, se muestra como "a convenir".</p>
     <div class="check-row" style="margin-top:14px;">
       <input type="checkbox" id="pGrua"><span>Tenemos grúa</span>
     </div>
@@ -476,6 +569,7 @@
 <!-- Botón 911 fijo, siempre visible -->
 <div class="emerg"><a href="tel:911">🚨 EMERGENCIA · Llamar al 911</a></div>
 <div class="toast" id="toast"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>
