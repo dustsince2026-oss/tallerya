@@ -855,8 +855,41 @@ document.getElementById('fotoTableroInput').addEventListener('change', async fun
     document.getElementById('fotoTableroPreview').style.display = 'block';
     fotoDataUrl = url;
     mostrarFocos();
+    await leerFotoTablero(url);
   }
 });
+// Manda la foto del tablero a la IA y marca solos los foquitos que se
+// ven prendidos. La foto no se guarda. Si la lectura no está activada
+// (sin llave) o falla, queda la lista manual de siempre y el conductor
+// pica los foquitos a mano.
+async function leerFotoTablero(dataUrl) {
+  const line = document.getElementById('fotoIALine');
+  const m = /^data:(image\/[a-zA-Z0-9.+-]+);base64,(.*)$/.exec(dataUrl || '');
+  if (!m) return;
+  line.textContent = 'Leyendo la foto con inteligencia artificial…';
+  line.style.display = 'block';
+  try {
+    const d = await api('/api/focos-leer-foto', { method: 'POST', body: { dataBase64: m[2], mimeType: m[1] } });
+    if (!d.ok) {
+      line.textContent = d.reason === 'no-key'
+        ? 'La lectura automática no está activada todavía. Pica los foquitos que ves prendidos.'
+        : 'No se pudo leer la foto sola. Pica los foquitos que ves prendidos.';
+      return;
+    }
+    if (!d.focos.length) {
+      line.textContent = 'No se ve ningún foquito prendido con claridad en la foto. Si ves alguno, pícalo.';
+      return;
+    }
+    // Nueva foto, nueva lectura: se limpia lo marcado antes.
+    focosSel = {};
+    document.querySelectorAll('#focosList input[type="checkbox"]').forEach(cb => { cb.checked = false; });
+    d.focos.forEach(id => { focosSel[id] = true; });
+    document.querySelectorAll('#focosList input[type="checkbox"]').forEach(cb => { cb.checked = !!focosSel[cb.dataset.foco]; });
+    line.textContent = 'La inteligencia artificial marcó los foquitos que ve prendidos. Revisa y corrige si hace falta.';
+  } catch (e) {
+    line.textContent = 'No se pudo leer la foto sola. Pica los foquitos que ves prendidos.';
+  }
+}
 async function mostrarSignificados() {
   const ids = Object.keys(focosSel).filter(k => focosSel[k]);
   const box = document.getElementById('focoResultado');
