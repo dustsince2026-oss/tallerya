@@ -171,6 +171,18 @@ test('búsqueda por incidente: grúa habla de grúas, noarranca acepta eléctric
   assert.ok(n.data.shops.every(s => s.tipos.includes('mecanico') || s.tipos.includes('electrico')));
 });
 
+test('choqué y presupuesto son lo mismo: un solo botón, alias en el servidor', async () => {
+  // El botón 'Presupuesto de hojalatería' se quitó de la app: si chocaste
+  // necesitas el presupuesto del choque. El servidor sigue aceptando
+  // incident=presupuesto como alias de choque, con el mismo texto.
+  const c = await callQ('search', { incident: 'choque' });
+  assert.equal(c.data.resTitle, 'Talleres de carrocería/hojalatería cerca de ti');
+  assert.ok(c.data.shops.some(s => s.nombre === 'Hojalatería y Pintura El Faro'));
+  const p = await callQ('search', { incident: 'presupuesto' });
+  assert.equal(p.data.resTitle, 'Talleres de carrocería/hojalatería cerca de ti');
+  assert.deepEqual(p.data.shops.map(s => s.id), c.data.shops.map(s => s.id));
+});
+
 test('avisar al taller: crea solicitud + notificación + link de WhatsApp', async () => {
   const d = await call('notify', {
     workshopId, incident: 'choque', descripcion: 'Me pegaron en la defensa',
