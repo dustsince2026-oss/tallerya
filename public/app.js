@@ -211,9 +211,9 @@ INCIDENTS.forEach(inc => {
   grid.appendChild(b);
 });
 
-// Recogida de la grúa: los dos botones de opción se atan aquí (no con
-// onclick en el HTML, que jsdom no ejecuta en las pruebas).
-document.getElementById('btnOrigenGps').onclick = () => setOrigenGrua('gps');
+// Recogida de la grúa: el enlace "Escribir la dirección a mano" se ata
+// aquí (no con onclick en el HTML, que jsdom no ejecuta en las pruebas).
+// El botón de ubicación es el de arriba ("Usar mi ubicación").
 document.getElementById('btnOrigenManual').onclick = () => setOrigenGrua('manual');
 
 function pickIncident(inc) {
@@ -234,17 +234,17 @@ function pickIncident(inc) {
   irADatos(inc);
 }
 
-// Recogida de la grúa: dos opciones. (1) Mi ubicación actual: el cuadro
-// se llena SOLO con tu dirección (se busca con Nominatim, gratis y sin
-// llave — el mismo servicio que calcula los km). (2) Escribir la
-// dirección: el cuadro se vacía y se escribe a mano; al buscar, esa
-// dirección se geocodifica para calcular los km. Con la llave de Google
-// Places (pendiente) la opción manual además sugerirá direcciones
-// mientras se escribe.
+// Recogida de la grúa: UN SOLO botón de ubicación — el de arriba
+// ("Usar mi ubicación"). Al picarlo, el cuadro se llena DIRECTO con tu
+// dirección (reverse-geocode con Nominatim, gratis y sin llave). No hay
+// un segundo botón de ubicación abajo: el de "Mi ubicación actual" se
+// quitó porque era lo mismo dos veces. Si el carro no está donde estás
+// tú, el enlace "Escribir la dirección a mano" abre el cuadro para
+// escribirla; al buscar, esa dirección se geocodifica para los km.
+// Con la llave de Google Places (pendiente) la opción manual además
+// sugerirá direcciones mientras se escribe.
 async function setOrigenGrua(modo) {
   gruaOrigen = modo;
-  document.getElementById('btnOrigenGps').classList.toggle('sel', modo === 'gps');
-  document.getElementById('btnOrigenManual').classList.toggle('sel', modo === 'manual');
   const input = document.getElementById('dRecogida');
   if (modo === 'manual') {
     input.disabled = false;
