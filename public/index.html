@@ -205,10 +205,10 @@
         <option value="Premium">Premium</option>
       </select>
       <p class="muted" style="margin-top:10px;">Plan gratis.</p>
-      <label>Código de invitación</label>
+      <label>Código de invitación (opcional)</label>
       <input id="aCodigo" placeholder="Ej. TALLER-ABC123" style="text-transform:uppercase;" autocomplete="off">
-      <p class="muted" style="margin-top:10px;">Te lo entrega Orlan cuando visita tu taller. Sin código no te puedes registrar como taller.</p>
-      <p class="muted" style="margin-top:10px;">Con el código, tu taller aparece en los resultados en cuanto te registras.</p>
+      <p class="muted" style="margin-top:10px;">Si Orlan ya te visitó y te dio un código, mételo aquí. Si no, déjalo vacío: tu cuenta queda en espera hasta que te visite.</p>
+      <p class="muted" style="margin-top:10px;">Con el código, tu cuenta se activa en cuanto te registras.</p>
     </div>
     <button class="primary" id="authBtn" onclick="doAuth()">Entrar</button>
     <p class="err" id="authErr"></p>
@@ -380,7 +380,14 @@
     <h2>Mi taller</h2>
     <p class="calm" id="panelSub"></p>
     <p class="muted">Plan gratis.</p>
-    <div id="panelPendiente" style="display:none;" class="note">Tu taller está desactivado por el dueño. Cuando se reactive, vuelve a aparecer en los resultados.</div>
+    <div id="panelPendiente" style="display:none;" class="note">
+      <b>Tu cuenta está en espera de verificación.</b><br><br>
+      En los próximos días llegará un agente de TallerYa a visitarte para corroborar la información que nos mostraste y entregarte el código para que tu registro sea exitoso.<br><br>
+      ¿Ya te entregaron tu código? Mételo aquí para activar tu cuenta:
+      <input id="activarCodigo" placeholder="Ej. TALLER-ABC123" style="text-transform:uppercase; margin-top:10px;" autocomplete="off">
+      <button class="primary" onclick="activarTaller()">Activar mi taller</button>
+      <p class="err" id="activarErr"></p>
+    </div>
 
     <h2 style="margin-top:6px;">Solicitudes que te llegaron</h2>
     <p class="muted">Cuando alguien pica “Avisar al taller”, te llega aquí y por WhatsApp al mismo tiempo, con su carro, su ubicación y su foto. Directo de la persona a ti, sin Google de por medio.</p>
@@ -434,11 +441,14 @@
   <section id="p-codigos" class="screen">
     <button class="back" onclick="show('p-home')">← Volver</button>
     <h2>Códigos de invitación</h2>
-    <p class="calm">Genera un código por taller y entrégaselo en persona cuando vayas a verificarlo. Solo con ese código se puede registrar un taller.</p>
+    <p class="calm">Genera un código por taller y entrégaselo en persona cuando vayas a verificarlo. Con ese código el taller <b>activa su cuenta</b>: los talleres ya se pueden registrar solos y quedan en espera hasta que les entregues el código.</p>
     <label>Nombre del taller (opcional)</label>
     <input id="codigoNota" placeholder="Ej. Hojalatería El Faro">
     <button class="primary" onclick="generarCodigo()">Generar código</button>
     <div id="codigoNuevo" style="display:none; margin-top:16px;"></div>
+    <h2 style="margin-top:22px;">Talleres en espera</h2>
+    <p class="muted">Talleres que ya se registraron y están esperando tu visita. Visítalo y entrégale un código para activarlo.</p>
+    <div id="pendientesList"></div>
     <h2 style="margin-top:22px;">Códigos</h2>
     <div id="codigosList"></div>
   </section>

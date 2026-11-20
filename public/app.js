@@ -149,6 +149,9 @@ async function afterLogin() {
   document.getElementById('codigosLink').style.display = (user && user.isOwner) ? 'block' : 'none';
   document.getElementById('savedLine').textContent = user ? ('Hola, ' + user.name.split(' ')[0] + ' ✓') : '';
   await refreshBell();
+  // Un taller en espera entra directo a su panel, donde ve el aviso de
+  // la visita y el campo para meter su código cuando se lo entreguen.
+  if (user && user.role === 'workshop' && user.approved === false) { openPanel(); return; }
   show('p-home');
 }
 function logout(silent) {
@@ -592,6 +595,21 @@ async function openPanel() {
     show('p-panel');
   } catch (e) { toast(e.message); }
 }
+// Un taller en espera activa su cuenta con el código que Orlan le
+// entregó en persona cuando fue a verificarlo.
+async function activarTaller() {
+  const errEl = document.getElementById('activarErr');
+  errEl.textContent = '';
+  const code = document.getElementById('activarCodigo').value.trim();
+  if (!code) { errEl.textContent = 'Escribe el código que te entregaron.'; return; }
+  try {
+    await api('/api/workshop-activate', { method: 'POST', body: { inviteCode: code } });
+    if (user) user.approved = true;
+    document.getElementById('activarCodigo').value = '';
+    toast('¡Tu taller ya está activo! ✓');
+    openPanel();
+  } catch (e) { errEl.textContent = e.message; }
+}
 function renderPanel(d) {
   const t = d.taller;
   document.getElementById('panelSub').textContent = t.nombre + ' · Plan ' + t.plan + (t.activo ? '' : ' · PAUSADO');
@@ -717,7 +735,29 @@ async function togglePausa() {
 async function openCodigos() {
   if (!user || !user.isOwner) { toast('Solo el dueño puede hacer esto.'); return; }
   await refreshCodigos();
+  await refreshPendientes();
   show('p-codigos');
+}
+async function refreshPendientes() {
+  try {
+    const d = await api('/api/pending-workshops');
+    const list = document.getElementById('pendientesList');
+    list.innerHTML = '';
+    if (!d.pendientes.length) {
+      list.innerHTML = '<p class="calm">No hay talleres en espera ahorita.</p>';
+      return;
+    }
+    d.pendientes.forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'card'; div.style.cursor = 'default';
+      div.innerHTML = '<h3>' + esc(p.nombre) + '</h3>' +
+        '<div class="meta">' + esc(p.contacto) + '<br>' +
+        esc(p.email) + (p.telefono ? ' · ' + esc(p.telefono) : '') + '<br>' +
+        'Se registró: ' + new Date(p.registrado).toLocaleDateString('es-MX') + '<br>' +
+        'Visítalo y entrégale un código para activarlo.</div>';
+      list.appendChild(div);
+    });
+  } catch (e) { toast(e.message); }
 }
 async function refreshCodigos() {
   try {
@@ -767,7 +807,7 @@ async function copiarCodigo(code) {
   }
 }
 async function desactivarCodigo(code) {
-  if (!window.confirm('¿Desactivar el código ' + code + '? Ya no servirá para registrarse.')) return;
+  if (!window.confirm('¿Desactivar el código ' + code + '? Ya no servirá para activar la cuenta.')) return;
   try {
     await api('/api/invite-code-deactivate', { method: 'POST', body: { code } });
     toast('Código desactivado');
@@ -791,6 +831,9 @@ async function desactivarCodigo(code) {
         document.getElementById('codigosLink').style.display = (user.isOwner) ? 'block' : 'none';
         document.getElementById('savedLine').textContent = 'Hola, ' + user.name.split(' ')[0] + ' ✓';
         await refreshBell();
+        // Un taller en espera entra directo a su panel (aviso de la
+        // visita + campo para meter su código).
+        if (user.role === 'workshop' && user.approved === false) { openPanel(); return; }
         show('p-home');
         return;
       }
