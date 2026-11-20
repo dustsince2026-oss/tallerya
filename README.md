@@ -529,8 +529,34 @@ sigue funcionando (solo talleres con la app + el aviso).
   del cuadro (no un botón). Cambios: index.html (se quitan los dos
   botones + CSS, se agrega el enlace), app.js (setOrigenGrua sin
   botones; el enlace se ata en JS), test/grua.test.js (el botón
-  "Mi ubicación actual" ya no existe). Suite 85/85. **Pendiente:
-  aprobación de Orlan para subir en vivo.**
+  "Mi ubicación actual" ya no existe). Suite 85/85.
+- **DESPLEGADO EN VIVO 2026-11-20 ~01:37 y VERIFICADO con curl por
+  Bibi** (4 archivos/4 commits, último 20fc51c; Vercel Ready): home
+  200, app.js en vivo idéntico a la carpeta (md5 a1b14281),
+  btnOrigenGps = 0 en vivo (el segundo botón ya no existe),
+  reverse-geocode en vivo sigue dando "Avenida Ignacio López Rayón,
+  Independencia, Ensenada". **CONFIRMADO por Orlan en su teléfono
+  ~01:39 (reportó un fallo, ver abajo).**
+- **Fallo reportado por Orlan ~01:39 (CONSTRUIDO, pendiente subir en
+  vivo):** si ponías la ubicación con el botón, la borrabas y volvías
+  a picar el botón, ya no se ponía. Causa: `useLocation()` solo
+  llenaba el cuadro si el modo seguía en 'gps', y al borrarlo el modo
+  cambiaba a 'manual'. Arreglo: el botón "Usar mi ubicación" SIEMPRE
+  vuelve a poner tu ubicación en el cuadro cuando estás en la grúa,
+  sin importar el modo anterior. Cambios: app.js (una condición),
+  test/grua.test.js (prueba nueva que repite exactamente lo que hizo
+  Orlan: llenar → borrar → volver a picar → se vuelve a poner).
+  Suite 87/87.
+- **Dirección escrita abajo del botón (pedido de Orlan ~01:41,
+  CONSTRUIDO, pendiente subir en vivo):** al picar "Usar mi
+  ubicación" ahora aparece abajo, en letras blancas, la dirección
+  escrita ("Av. Rayón 273, Independencia") para que el conductor se
+  asegure de que sí se leyó su ubicación. La pantalla de datos es la
+  misma para todos los incidentes, así que sale en choque, no
+  arranca, grúa, llantera y otro. Si no hay internet para buscar la
+  dirección, queda el "Ubicación lista ✓" de antes. Cambios: app.js
+  (nueva función `mostrarDireccionActual`), test/grua.test.js
+  (prueba nueva). Suite 87/87.
 
 - El flujo actual de grúa solo pide dónde está el carro (un solo
   lugar, por GPS); NO hay dos cuadritos de recoger/llevar. Sí se puede
