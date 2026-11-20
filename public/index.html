@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b1622">
+<title>TallerYa — Ayuda para tu carro, sin vueltas</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/logo.png">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #0b1622;
+    color: #f2f6fa;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .app { max-width: 480px; margin: 0 auto; min-height: 100%; padding: 14px 16px 110px; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .logo { font-size: 26px; font-weight: 800; letter-spacing: .5px; display: flex; align-items: center; gap: 10px; }
+  .logo img { width: 44px; height: 44px; border-radius: 12px; }
+  .logo span { color: #f5b301; }
+  .tag { color: #9fb2c8; font-size: 15px; margin: 4px 0 18px; }
+  h1 { font-size: 26px; line-height: 1.2; margin: 6px 0 8px; }
+  h2 { font-size: 22px; line-height: 1.25; margin: 6px 0 10px; }
+  .calm { color: #c6d4e2; font-size: 17px; line-height: 1.45; margin-bottom: 18px; }
+  .muted { color: #9fb2c8; font-size: 14px; line-height: 1.45; }
+  .grid { display: flex; flex-direction: column; gap: 12px; }
+  button.big {
+    width: 100%; min-height: 76px; border: none; border-radius: 16px;
+    background: #1c3a5c; color: #fff; font-size: 21px; font-weight: 700;
+    cursor: pointer; text-align: left; padding: 14px 18px; line-height: 1.2;
+    box-shadow: 0 2px 0 #12263f;
+  }
+  button.big small { display: block; font-size: 14px; font-weight: 400; color: #b9cde0; margin-top: 3px; }
+  button.big:active { background: #24486e; }
+  button.big.sel { outline: 3px solid #f5b301; background: #24486e; }
+  button.primary {
+    width: 100%; min-height: 64px; border: none; border-radius: 16px;
+    background: #f5b301; color: #1a1a1a; font-size: 20px; font-weight: 800;
+    cursor: pointer; margin-top: 16px;
+  }
+  button.primary:active { background: #d99e00; }
+  button.ghost {
+    width: 100%; min-height: 56px; border: 2px solid #2b4a68; border-radius: 16px;
+    background: transparent; color: #cfe0ef; font-size: 17px; font-weight: 600;
+    cursor: pointer; margin-top: 10px;
+  }
+  button.link {
+    background: none; border: none; color: #7fb3e8; font-size: 16px;
+    padding: 10px 4px; cursor: pointer; text-decoration: underline;
+  }
+  .links { display: flex; flex-direction: column; align-items: center; margin-top: 16px; }
+  .saved { text-align: center; color: #8fce9b; font-size: 15px; margin-top: 8px; min-height: 20px; }
+  .back { background: none; border: none; color: #7fb3e8; font-size: 16px; padding: 6px 0 12px; cursor: pointer; }
+  label { display: block; font-size: 15px; font-weight: 600; margin: 14px 0 6px; }
+  input, select, textarea {
+    width: 100%; min-height: 52px; border-radius: 12px; border: 2px solid #2b4a68;
+    background: #12263f; color: #fff; font-size: 17px; padding: 10px 12px;
+    font-family: inherit;
+  }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #f5b301; border-color: #f5b301; }
+  textarea { min-height: 80px; resize: vertical; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 > div { flex: 1; }
+  .note {
+    background: #12263f; border: 1px solid #2b4a68; border-radius: 12px;
+    padding: 12px; font-size: 14.5px; line-height: 1.5; color: #c6d4e2; margin-top: 14px;
+  }
+  .seguro-box { border: 2px solid #2b4a68; border-radius: 14px; padding: 12px; margin-top: 16px; }
+  .seguro-box .seg-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .check-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+  .check-row input { width: 26px; height: 26px; min-height: 26px; accent-color: #f5b301; }
+  .check-row span { font-size: 17px; }
+  .card {
+    background: #16283f; border: 1px solid #243850; border-radius: 16px;
+    padding: 16px; margin-bottom: 12px; cursor: pointer;
+  }
+  .card h3 { font-size: 19px; margin-bottom: 2px; }
+  .card .esp { color: #7fb3e8; font-size: 15px; margin-bottom: 8px; }
+  .badge {
+    display: inline-block; background: #3a2f00; color: #ffd75e; border-radius: 6px;
+    font-size: 11px; font-weight: 700; padding: 2px 7px; margin-left: 6px; vertical-align: middle;
+  }
+  .badge.prem { background: #f5b301; color: #1a1a1a; }
+  .badge.red { background: #d92b2b; color: #fff; }
+  .meta { font-size: 15px; color: #c6d4e2; line-height: 1.55; }
+  .stars { color: #f5b301; font-size: 16px; letter-spacing: 1px; }
+  .open { color: #8fce9b; font-weight: 700; }
+  .actions { display: flex; gap: 10px; margin-top: 12px; }
+  .actions a, .actions button {
+    flex: 1; min-height: 54px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700; text-decoration: none; cursor: pointer; border: none;
+  }
+  .call { background: #2e7d32; color: #fff; }
+  .wa { background: #1faa55; color: #fff; }
+  .foto-btn {
+    display: block; width: 100%; min-height: 56px; border: 2px dashed #2b4a68; border-radius: 12px;
+    background: transparent; color: #cfe0ef; font-size: 16px; cursor: pointer; margin-top: 6px;
+  }
+  .ok-big { font-size: 64px; text-align: center; margin: 18px 0 6px; }
+  .center { text-align: center; }
+  .seguro-card {
+    background: #12263f; border: 2px solid #f5b301; border-radius: 14px;
+    padding: 14px; margin-top: 16px; text-align: left;
+  }
+  .seguro-card b { color: #ffd75e; }
+  .review { border-top: 1px solid #243850; padding: 10px 0; font-size: 15px; line-height: 1.45; color: #c6d4e2; }
+  .review b { color: #fff; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .bell {
+    position: relative; background: #1c3a5c; border: none; border-radius: 12px;
+    width: 48px; height: 48px; font-size: 22px; cursor: pointer; color: #fff;
+  }
+  .bell .dot {
+    position: absolute; top: -4px; right: -4px; background: #d92b2b; color: #fff;
+    font-size: 12px; font-weight: 800; min-width: 22px; height: 22px; border-radius: 11px;
+    display: flex; align-items: center; justify-content: center; padding: 0 4px;
+  }
+  .seg { display: flex; gap: 8px; margin: 10px 0; }
+  .seg button {
+    flex: 1; min-height: 52px; border-radius: 12px; border: 2px solid #2b4a68;
+    background: transparent; color: #cfe0ef; font-size: 16px; font-weight: 700; cursor: pointer;
+  }
+  .seg button.sel { background: #f5b301; color: #1a1a1a; border-color: #f5b301; }
+  .err { color: #ff8a8a; font-size: 15px; margin-top: 10px; min-height: 20px; text-align: center; }
+  /* Botón 911 fijo */
+  .emerg {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+    display: flex; justify-content: center;
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+    background: #0b1622;
+    pointer-events: none;
+  }
+  .emerg a {
+    pointer-events: auto; width: 100%; max-width: 448px; min-height: 60px;
+    background: #d92b2b; color: #fff; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    font-size: 19px; font-weight: 800; text-decoration: none;
+    box-shadow: 0 4px 14px rgba(217,43,43,.5);
+  }
+  .emerg a:active { background: #b32424; }
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 92px; z-index: 60;
+    background: #1faa55; color: #fff; font-size: 16px; font-weight: 700;
+    padding: 12px 18px; border-radius: 12px; display: none; max-width: 90%; text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ============ ENTRAR / REGISTRO ============ -->
+  <section id="p-auth" class="screen active">
+    <div class="logo"><img src="/logo.png" alt="TallerYa">Taller<span>Ya</span></div>
+    <p class="tag">Ayuda para tu carro, sin vueltas.</p>
+    <h1 id="authTitle">Entra a TallerYa</h1>
+    <p class="calm">Una cuenta para todo: pedir ayuda o atender como taller.</p>
+    <div class="seg" id="authSeg">
+      <button id="segLogin" class="sel" onclick="setAuthMode('login')">Entrar</button>
+      <button id="segRegister" onclick="setAuthMode('register')">Registrarme</button>
+    </div>
+    <div id="regNameBox" style="display:none;">
+      <label>Nombre</label>
+      <input id="aNombre" placeholder="Tu nombre">
+    </div>
+    <label>Correo</label>
+    <input id="aEmail" type="email" placeholder="tu@correo.com" autocomplete="email">
+    <label>Contraseña</label>
+    <input id="aPass" type="password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+    <div id="regRoleBox" style="display:none;">
+      <label>Me registro como</label>
+      <div class="seg">
+        <button id="roleDriver" class="sel" onclick="setRole('driver')">Conductor</button>
+        <button id="roleWorkshop" onclick="setRole('workshop')">Taller</button>
+      </div>
+    </div>
+    <div id="regTallerBox" style="display:none;">
+      <label>Nombre del taller</label>
+      <input id="aTallerNombre" placeholder="Ej. Hojalatería El Faro">
+      <label>Especialidad principal</label>
+      <select id="aEspecialidad">
+        <option>Hojalatería y pintura</option>
+        <option>Mecánica</option>
+        <option>Eléctrico automotriz</option>
+        <option>Grúas</option>
+        <option>Varias</option>
+      </select>
+      <label>Zona que cubres</label>
+      <input id="aZona" placeholder="Ej. Ensenada, Valle Verde">
+      <label>WhatsApp del taller</label>
+      <input id="aWa" placeholder="646 123 4567" inputmode="tel">
+      <div class="check-row" style="margin-top:14px;">
+        <input type="checkbox" id="aGrua"><span>Tenemos grúa</span>
+      </div>
+      <div class="check-row">
+        <input type="checkbox" id="aDomicilio"><span>Vamos a domicilio</span>
+      </div>
+      <label>Plan que te interesa (precio por confirmar)</label>
+      <select id="aPlan">
+        <option value="Basico">Básico</option>
+        <option value="Destacado">Destacado</option>
+        <option value="Premium">Premium</option>
+      </select>
+      <p class="muted" style="margin-top:10px;">Tu registro se revisa antes de que aparezcas en los resultados.</p>
+    </div>
+    <button class="primary" id="authBtn" onclick="doAuth()">Entrar</button>
+    <p class="err" id="authErr"></p>
+    <p class="muted center" style="margin-top:14px;">¿No tienes cuenta? Pica “Registrarme” arriba. Para pedir ayuda no se cobra nada.</p>
+  </section>
+
+  <!-- ============ PANTALLA 1: INICIO ============ -->
+  <section id="p-home" class="screen">
+    <div class="topbar">
+      <div class="logo"><img src="/logo.png" alt="TallerYa">Taller<span>Ya</span></div>
+      <button class="bell" id="bellBtn" onclick="openNotifs()" title="Avisos">🔔<span class="dot" id="bellDot" style="display:none;">0</span></button>
+    </div>
+    <p class="tag">Ayuda para tu carro, sin vueltas.</p>
+    <h1>¿Qué le pasó a tu carro?</h1>
+    <p class="calm">Tranquilo. Pica lo que te pasó y te conectamos con un taller cerca de ti.</p>
+    <div class="grid" id="incidentGrid"></div>
+    <div class="links">
+      <button class="link" onclick="openDriverProfile()">Mis datos y mi seguro</button>
+      <button class="link" id="panelLink" onclick="openPanel()">Mi panel de taller</button>
+      <button class="link" onclick="logout()">Cerrar sesión</button>
+    </div>
+    <p class="saved" id="savedLine"></p>
+  </section>
+
+  <!-- ============ PANTALLA 2: UBICACIÓN Y DATOS ============ -->
+  <section id="p-datos" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2 id="datosTitle">¿Dónde estás?</h2>
+    <p class="calm" id="datosNote">Solo ocupamos esto para buscarte el taller más cercano.</p>
+    <button class="big" onclick="useLocation()">📍 Usar mi ubicación</button>
+    <p class="muted" id="locLine" style="margin-top:10px;">Todavía no tenemos tu ubicación.</p>
+    <label>¿En qué carro te pasó?</label>
+    <div class="grid" id="carroPicker"></div>
+    <div id="carroManual" style="display:none;">
+      <div class="row2">
+        <div><input id="dMarca" placeholder="Marca (ej. Nissan)"></div>
+        <div><input id="dModelo" placeholder="Modelo (ej. Versa)"></div>
+      </div>
+      <div class="row2">
+        <div><input id="dAnio" placeholder="Año" inputmode="numeric"></div>
+        <div><input id="dColor" placeholder="Color"></div>
+      </div>
+    </div>
+    <label>Foto del daño o del tablero (opcional)</label>
+    <label class="foto-btn" style="text-align:center; line-height: 34px; padding: 10px;" for="fotoInput">📷 Agregar foto</label>
+    <input type="file" id="fotoInput" accept="image/*" style="display:none">
+    <p class="muted" id="fotoLine" style="margin-top:8px;"></p>
+    <div id="otroBox" style="display:none;">
+      <label>¿Qué le pasa a tu carro?</label>
+      <textarea id="otroDesc" placeholder="Descríbelo con tus palabras, ej. Se escucha un ruido raro al frenar y huele a quemado…"></textarea>
+    </div>
+    <button class="primary" id="buscarBtn" onclick="searchShops()">Buscar taller ahora</button>
+  </section>
+
+  <!-- ============ PANTALLA 3: RESULTADOS ============ -->
+  <section id="p-resultados" class="screen">
+    <button class="back" onclick="show('p-datos')">← Volver</button>
+    <h2 id="resTitle">Talleres cerca de ti</h2>
+    <p class="calm" id="resSub"></p>
+    <p class="muted">Primero salen los talleres que ya tienen la app (te responden directo); después, los de Google.</p>
+    <div id="resList"></div>
+    <p class="muted center" id="resHint" style="margin-top:14px;">¿No te convence ninguno? Pica “Otro problema” en el inicio y descríbelo.</p>
+  </section>
+
+  <!-- ============ PANTALLA 4: FICHA DEL TALLER ============ -->
+  <section id="p-ficha" class="screen">
+    <button class="back" onclick="show('p-resultados')">← Volver a resultados</button>
+    <div id="fichaBody"></div>
+  </section>
+
+  <!-- ============ PANTALLA 8: FOQUITO DEL TABLERO ============ -->
+  <section id="p-foquito" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>💡 ¿Qué foquito se prendió?</h2>
+    <p class="calm">Tómale una foto al tablero con todos los foquitos que se ven prendidos y te decimos qué significa cada uno.</p>
+    <div id="fotoTableroBox">
+      <label class="foto-btn" style="text-align:center; line-height: 34px; padding: 10px;" for="fotoTableroInput">📷 Tomar foto al tablero</label>
+      <input type="file" id="fotoTableroInput" accept="image/*" capture="environment" style="display:none">
+      <p class="muted center" style="margin-top:10px;"><button class="link" onclick="mostrarFocos()">No tengo foto ahorita, ver la lista de foquitos</button></p>
+    </div>
+    <div id="fotoTableroPreview" style="display:none; margin-top:12px;">
+      <img id="fotoTableroImg" style="width:100%; border-radius:12px; border:2px solid #2b4a68;" alt="Foto del tablero">
+    </div>
+    <div id="focosBox" style="display:none; margin-top:16px;">
+      <p class="calm">Pica los foquitos que ves prendidos en tu tablero:</p>
+      <div id="focosList"></div>
+      <button class="primary" onclick="mostrarSignificados()">Ver qué significa</button>
+    </div>
+    <div id="focoResultado" style="display:none; margin-top:16px;"></div>
+    <div class="note">En una versión próxima, la foto se leerá sola con inteligencia artificial y te marcará cuáles foquitos están prendidos. Por ahora, tú picas cuáles ves.</div>
+  </section>
+
+  <!-- ============ PANTALLA 0: MIS DATOS (CONDUCTOR) ============ -->
+  <section id="p-registro" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>Mis datos</h2>
+    <p class="calm">Se guardan en tu cuenta. La próxima vez ya no te los pedimos.</p>
+    <label>Nombre</label>
+    <input id="uNombre" placeholder="Tu nombre">
+    <label>Teléfono (WhatsApp)</label>
+    <input id="uTel" placeholder="646 123 4567" inputmode="tel">
+    <label>Mis carros (hasta 3)</label>
+    <p class="muted">Agrega los carros que usas. Cuando te pase algo, nomás picas en cuál fue, sin volver a escribir nada.</p>
+    <div id="carro1">
+      <div class="seg-title" style="margin-top:10px;">Carro 1</div>
+      <div class="row2">
+        <div><input id="uMarca1" placeholder="Marca"></div>
+        <div><input id="uModelo1" placeholder="Modelo"></div>
+      </div>
+      <div class="row2">
+        <div><input id="uAnio1" placeholder="Año" inputmode="numeric"></div>
+        <div><input id="uColor1" placeholder="Color"></div>
+      </div>
+    </div>
+    <div id="carro2" style="display:none;">
+      <div class="seg-title" style="margin-top:10px;">Carro 2</div>
+      <div class="row2">
+        <div><input id="uMarca2" placeholder="Marca"></div>
+        <div><input id="uModelo2" placeholder="Modelo"></div>
+      </div>
+      <div class="row2">
+        <div><input id="uAnio2" placeholder="Año" inputmode="numeric"></div>
+        <div><input id="uColor2" placeholder="Color"></div>
+      </div>
+    </div>
+    <div id="carro3" style="display:none;">
+      <div class="seg-title" style="margin-top:10px;">Carro 3</div>
+      <div class="row2">
+        <div><input id="uMarca3" placeholder="Marca"></div>
+        <div><input id="uModelo3" placeholder="Modelo"></div>
+      </div>
+      <div class="row2">
+        <div><input id="uAnio3" placeholder="Año" inputmode="numeric"></div>
+        <div><input id="uColor3" placeholder="Color"></div>
+      </div>
+    </div>
+    <button class="ghost" id="addCarroBtn" onclick="addCarro()">+ Agregar otro carro</button>
+
+    <div class="seguro-box">
+      <div class="seg-title">🚗 ¿Tienes seguro de carro?</div>
+      <div class="check-row">
+        <input type="checkbox" id="uTieneSeguro" onchange="toggleSeguro()">
+        <span>Sí, tengo seguro</span>
+      </div>
+      <div id="seguroFields" style="display:none;">
+        <label>Aseguradora</label>
+        <select id="uAseguradora">
+          <option value="">Elige tu aseguradora…</option>
+          <option>Quálitas</option><option>GNP</option><option>AXA</option>
+          <option>MAPFRE</option><option>HDI</option><option>Zurich</option>
+          <option>Chubb</option><option>BBVA</option><option>Banorte</option>
+          <option>Otra</option>
+        </select>
+        <label>Número de póliza</label>
+        <input id="uPoliza" placeholder="Ej. 123456789">
+        <label>Teléfono de la aseguradora</label>
+        <input id="uTelAseg" placeholder="Ej. 800 800 8000" inputmode="tel">
+      </div>
+      <div class="note">Tu póliza se guarda en tu cuenta. La app <b>no se conecta al sistema de tu aseguradora</b>: cuando pidas ayuda, te mostramos el botón para llamarla con tu póliza ya lista, para que no andes buscándola en plena emergencia.</div>
+    </div>
+    <button class="primary" onclick="saveUser()">Guardar mis datos</button>
+  </section>
+
+  <!-- ============ PANTALLA 9: PANEL DEL TALLER ============ -->
+  <section id="p-panel" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>Mi taller</h2>
+    <p class="calm" id="panelSub"></p>
+    <div id="panelPendiente" style="display:none;" class="note">Tu registro está en revisión. Cuando se apruebe, tu taller aparece en los resultados.</div>
+
+    <h2 style="margin-top:6px;">Solicitudes que te llegaron</h2>
+    <p class="muted">Cuando alguien pica “Avisar al taller”, te llega aquí y por WhatsApp al mismo tiempo, con su carro, su ubicación y su foto. Directo de la persona a ti, sin Google de por medio.</p>
+    <div id="panelSolicitudes"></div>
+
+    <h2 style="margin-top:22px;">Mis servicios y precios</h2>
+    <div id="panelServicios"></div>
+    <button class="primary" onclick="saveServicios()">Guardar servicios</button>
+
+    <h2 style="margin-top:22px;">Mis ofertas</h2>
+    <div id="panelOfertas"></div>
+    <label>Título de la oferta</label>
+    <input id="oTitulo" placeholder="Ej. Afinación completa">
+    <div class="row2">
+      <div><input id="oPrecio" placeholder="Precio $"></div>
+      <div><input id="oVigencia" placeholder="Vigencia (ej. Hasta el sábado)"></div>
+    </div>
+    <button class="primary" onclick="addOferta()">Publicar oferta</button>
+
+    <h2 style="margin-top:22px;">Mi perfil</h2>
+    <label>Nombre del taller</label>
+    <input id="pNombre" placeholder="Nombre del taller">
+    <label>WhatsApp</label>
+    <input id="pWa" placeholder="646 123 4567" inputmode="tel">
+    <label>Horario</label>
+    <input id="pHorario" placeholder="8:00 – 18:00">
+    <label>Zona que cubres</label>
+    <input id="pZona" placeholder="Ej. Ensenada, Valle Verde">
+    <label>Dirección</label>
+    <input id="pDireccion" placeholder="Calle y número">
+    <label>Servicios que haces (texto corto)</label>
+    <textarea id="pServiciosTexto" placeholder="Ej. Hojalatería, pintura, presupuestos a domicilio"></textarea>
+    <div class="check-row" style="margin-top:14px;">
+      <input type="checkbox" id="pGrua"><span>Tenemos grúa</span>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="pDomicilio"><span>Vamos a domicilio</span>
+    </div>
+    <button class="primary" onclick="savePerfil()">Guardar mi perfil</button>
+
+    <h2 style="margin-top:22px;">Cómo te va (últimos 7 días)</h2>
+    <div class="card" style="cursor:default;"><div class="meta" id="panelStats"></div></div>
+
+    <h2 style="margin-top:22px;">Mi suscripción</h2>
+    <div class="card" style="cursor:default;"><div class="meta" id="panelPlan"></div>
+    <button class="ghost" id="pausaBtn" onclick="togglePausa()">Pausar mi anuncio</button></div>
+    <p class="muted" style="margin-top:10px;">Sin pagos dentro de la app por ahora: el cobro de la suscripción se acuerda directo (transferencia o Clip).</p>
+  </section>
+
+  <!-- ============ PANTALLA: AVISOS (CAMPANITA) ============ -->
+  <section id="p-notifs" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>Avisos</h2>
+    <p class="calm">Aquí te llegan las solicitudes y avisos de TallerYa.</p>
+    <div id="notifList"></div>
+  </section>
+
+  <!-- ============ PANTALLA 7: CONFIRMACIÓN ============ -->
+  <section id="p-confirm" class="screen">
+    <div class="ok-big">✅</div>
+    <h2 class="center">¡Listo! Ya avisamos al taller</h2>
+    <p class="calm center" id="confirmText"></p>
+    <p class="calm center">El aviso le llegó <b>directo al dueño del taller</b>, por <b>WhatsApp</b> y en la <b>app</b> al mismo tiempo. Te va a llamar o escribir para darte el presupuesto, sin que tengas que buscar nada en Google.</p>
+    <div id="seguroCard"></div>
+    <div id="confirmWa" style="margin-top:16px;"></div>
+    <button class="primary" onclick="show('p-home')">Volver al inicio</button>
+  </section>
+</div>
+
+<!-- Botón 911 fijo, siempre visible -->
+<div class="emerg"><a href="tel:911">🚨 EMERGENCIA · Llamar al 911</a></div>
+<div class="toast" id="toast"></div>
+<script src="/app.js"></script>
+</body>
+</html>
