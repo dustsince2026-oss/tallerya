@@ -32,6 +32,9 @@ async function makeDom(distanciaMode) {
   const captured = { notify: null, search: false, distanciaBody: null };
   const fetchStub = async (url, opts) => {
     const u = String(url);
+    if (u.includes('/api/reverse-geocode')) {
+      return { ok: true, status: 200, json: async () => ({ direccion: 'Av. Ignacio L. Rayón 273, Independencia, Ensenada' }) };
+    }
     if (u.includes('/api/grua-distancia')) {
       captured.distanciaBody = JSON.parse(opts.body);
       if (distanciaMode === 'fail') return { ok: false, status: 502, json: async () => ({ error: 'No pudimos calcular la distancia ahorita. Inténtalo de nuevo.' }) };
@@ -51,7 +54,7 @@ async function makeDom(distanciaMode) {
   };
   globalThis.fetch = fetchStub;
   window.fetch = fetchStub;
-  window.eval(appJs + '\n;window.__test = { searchShops, show, notifyShop, setUser: (u) => { user = u; }, setLoc: (la, ln) => { lat = la; lng = ln; } };');
+  window.eval(appJs + '\n;window.__test = { searchShops, show, notifyShop, setOrigenGrua, setUser: (u) => { user = u; }, setLoc: (la, ln) => { lat = la; lng = ln; } };');
   await new Promise(r => setTimeout(r, 50));
   wins.push(window);
   return { window, document: window.document, t: window.__test, captured };
@@ -68,6 +71,60 @@ test('grúa muestra los dos lugares en datos (recogida prellenada, destino vací
   assert.equal(doc.getElementById('dRecogida').value, 'Mi ubicación actual');
   assert.equal(doc.getElementById('dDestino').value, '');
   assert.equal(doc.getElementById('gruaDistancia').textContent, '');
+});
+
+test('recogida tiene dos opciones; por defecto Mi ubicación actual', async () => {
+  const { document: doc } = await makeDom('ok');
+  incBtns(doc)[2].click(); // Necesito grúa
+  assert.ok(doc.getElementById('btnOrigenGps').classList.contains('sel'));
+  assert.ok(!doc.getElementById('btnOrigenManual').classList.contains('sel'));
+  const input = doc.getElementById('dRecogida');
+  assert.equal(input.disabled, true);
+  assert.equal(input.value, 'Mi ubicación actual');
+});
+
+test('picar Escribir la dirección habilita el cuadro para escribir a mano', async () => {
+  const { document: doc } = await makeDom('ok');
+  incBtns(doc)[2].click();
+  doc.getElementById('btnOrigenManual').click();
+  const input = doc.getElementById('dRecogida');
+  assert.equal(input.disabled, false);
+  assert.equal(input.value, '');
+  assert.ok(input.placeholder.includes('Av. Reforma'));
+  assert.ok(doc.getElementById('btnOrigenManual').classList.contains('sel'));
+  assert.ok(!doc.getElementById('btnOrigenGps').classList.contains('sel'));
+});
+
+test('con GPS, el cuadro se llena solo con tu dirección actual', async () => {
+  const { document: doc, t } = await makeDom('ok');
+  t.setLoc(31.8631, -116.5959);
+  incBtns(doc)[2].click();
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(doc.getElementById('dRecogida').value, 'Av. Ignacio L. Rayón 273, Independencia, Ensenada');
+  assert.equal(doc.getElementById('dRecogida').disabled, true);
+});
+
+test('origen manual: manda origenDireccion y calcula los km sin GPS', async () => {
+  const { document: doc, t, captured } = await makeDom('ok');
+  incBtns(doc)[2].click();
+  doc.getElementById('btnOrigenManual').click();
+  doc.getElementById('dRecogida').value = 'Av. Rayón 273, Ensenada';
+  doc.getElementById('dDestino').value = 'Taller El Toro, Av. Reforma';
+  await t.searchShops();
+  assert.ok(active(doc, 'p-resultados'));
+  assert.equal(captured.distanciaBody.origenDireccion, 'Av. Rayón 273, Ensenada');
+  assert.equal(captured.distanciaBody.origenLat, undefined);
+  assert.ok(doc.getElementById('gruaDistancia').textContent.includes('Distancia del traslado: 12.4 km'));
+});
+
+test('origen manual vacío no busca', async () => {
+  const { document: doc, t, captured } = await makeDom('ok');
+  incBtns(doc)[2].click();
+  doc.getElementById('btnOrigenManual').click();
+  doc.getElementById('dDestino').value = 'Taller El Toro, Av. Reforma';
+  await t.searchShops();
+  assert.equal(captured.search, false);
+  assert.equal(captured.distanciaBody, null);
 });
 
 test('sin destino no busca grúas', async () => {
@@ -168,4 +225,49 @@ test('backend: sin ruta da 400', async () => {
     throw new Error('fetch inesperado: ' + u);
   };
   await expectErr(dispatch('grua-distancia', { body: { origenLat: 31.86, origenLng: -116.59, destino: 'Av. Reforma 232' }, query: {}, token: null }), 400);
+});
+
+// ---------------- Backend: ruta reverse-geocode ----------------
+test('backend: reverse-geocode devuelve la dirección corta', async () => {
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    assert.ok(u.includes('reverse?'), 'debe llamar al reverse de Nominatim');
+    return { ok: true, status: 200, json: async () => ({
+      address: { road: 'Av. Ignacio L. Rayón', house_number: '273', suburb: 'Independencia', city: 'Ensenada' },
+      display_name: 'Av. Ignacio L. Rayón, 273, Independencia, Ensenada, Baja California, México' }) };
+  };
+  const r = await dispatch('reverse-geocode', { body: { lat: 31.8631, lng: -116.5959 }, query: {}, token: null });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.direccion, 'Av. Ignacio L. Rayón 273, Independencia, Ensenada');
+});
+
+test('backend: reverse-geocode sin coordenadas da 400', async () => {
+  await expectErr(dispatch('reverse-geocode', { body: {}, query: {}, token: null }), 400);
+});
+
+test('backend: grua-distancia con origen manual geocodifica el origen', async () => {
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('nominatim')) {
+      if (u.includes('Reforma')) return { ok: true, status: 200, json: async () => [{ lat: '31.8610', lon: '-116.6066', display_name: 'Av. Reforma 232, Independencia, Ensenada' }] };
+      return { ok: true, status: 200, json: async () => [{ lat: '31.8631', lon: '-116.5959', display_name: 'Av. Ignacio L. Rayón 273, Independencia, Ensenada' }] };
+    }
+    if (u.includes('router.project-osrm.org')) {
+      assert.ok(u.includes('-116.5959,31.8631;-116.6066,31.861'), 'la ruta debe salir del origen manual: ' + u);
+      return { ok: true, status: 200, json: async () => ({ routes: [{ distance: 2900 }] }) };
+    }
+    throw new Error('fetch inesperado: ' + u);
+  };
+  const r = await dispatch('grua-distancia', { body: { origenDireccion: 'Av. Rayón 273, Ensenada', destino: 'Av. Reforma 232' }, query: {}, token: null });
+  assert.equal(r.status, 200);
+  assert.equal(r.data.km, 2.9);
+});
+
+test('backend: grua-distancia con origen manual no encontrado da 400', async () => {
+  globalThis.fetch = async (url) => {
+    const u = String(url);
+    if (u.includes('nominatim')) return { ok: true, status: 200, json: async () => [] };
+    throw new Error('fetch inesperado: ' + u);
+  };
+  await expectErr(dispatch('grua-distancia', { body: { origenDireccion: 'asdf qwer', destino: 'Av. Reforma 232' }, query: {}, token: null }), 400);
 });
