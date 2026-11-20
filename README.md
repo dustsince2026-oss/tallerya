@@ -89,9 +89,12 @@ test/                      38 pruebas (node:test): auth, orden de
 - **Estadísticas (últimos 7 días):** cuántas veces lo vieron, lo llamaron
   y le avisaron.
 - **Suscripción:** muestra el plan y botón **Pausar mi anuncio** (mientras
-  está pausado no aparece en las búsquedas). **Sin cobro real en v1.**
-- **Aprobación:** un taller nuevo NO aparece en búsquedas hasta que el
-  dueño lo aprueba (`OWNER_EMAIL`, ver abajo).
+  está pausado no aparece en las búsquedas). **Plan gratis, sin cobro.**
+- **Códigos de invitación:** un taller nuevo solo se puede registrar
+  con un código que el dueño le entregó en persona (ver "Códigos de
+  invitación para talleres" abajo). Con código válido entra aprobado
+  en ese momento. Respaldo: el dueño puede quitarle y devolverle la
+  aprobación con `/api/workshop-approve` (`OWNER_EMAIL`, ver abajo).
 
 ### Seguridad y honestidad
 - Contraseñas con `scrypt` + salt; tokens de sesión HMAC con expiración
@@ -128,7 +131,7 @@ reinicio invalida las sesiones). Los datos se guardan en `./data/db.json`
 | Variable | Para qué | Obligatoria |
 |---|---|---|
 | `AUTH_SECRET` | Firma los tokens de sesión | No (temporal si falta) |
-| `OWNER_EMAIL` | Correo del dueño (aprueba talleres). Por defecto `dueno@tallerya.mx` | No |
+| `OWNER_EMAIL` | Correo del dueño (genera códigos y puede aprobar talleres). Por defecto `dueno@tallerya.mx` | No |
 | `PORT` | Puerto. Por defecto `3000` | No |
 | `TALLERYA_DATA_DIR` | Dónde guarda `db.json` en local | No |
 | `SUPABASE_URL` | URL del proyecto Supabase (producción) | Sí, en producción |
@@ -142,7 +145,7 @@ reinicio invalida las sesiones). Los datos se guardan en `./data/db.json`
 ## Pruebas
 
 ```bash
-npm test            # 38 pruebas, todas verdes
+npm test            # 45 pruebas, todas verdes
 node --check server.js public/app.js api/_lib/*.js
 ```
 
@@ -150,7 +153,9 @@ Qué cubren: hash/verificación de contraseña y tokens; orden de
 resultados (app primero, plan, rating, distancia, GPS real); los 10
 foquitos y su especialista; el flujo completo con el adaptador de
 archivo: registro driver/taller, perfil con 3 carros (el 4.º se rechaza),
-aprobación por el dueño, búsqueda antes/después de aprobar, aviso al
+códigos de invitación (sin código → 400, código usado → 400, con código
+válido entra aprobado y aparece en búsquedas, desactivar, solo el dueño
+crea/lista/desactiva), aprobación por el dueño (respaldo), aviso al
 taller + notificación + WhatsApp, panel (servicios, ofertas, perfil,
 pausa), foto visible solo para conductor y taller, stats; y Google
 Places: mapeo de la respuesta de la API, teléfono a 10 dígitos, cerrado
@@ -217,26 +222,84 @@ cuesta ~$17 USD por 1,000. Para el arranque en Ensenada sobra. Si el
 crédito se acaba, Google cobra lo que sigue según su lista de precios
 — revisar en Cloud Console → Facturación antes de que llegue el caso.
 
+## Códigos de invitación para talleres
+
+Solo entran talleres **serios y establecidos**, verificados por Orlan
+**en persona** (decisión de Orlan 2026-11-19). Nadie se puede registrar
+como taller solo: el taller necesita un código que Orlan le entrega
+cuando va a verificarlo. El conductor no necesita código.
+
+### Cómo funciona (flujo)
+1. Orlan se registra como **conductor** con su correo
+   (dust.since2026@gmail.com) y queda como dueño.
+2. En el inicio, Orlan pica **"Códigos de invitación"** (solo la ve él),
+   escribe el nombre del taller (opcional) y pica **"Generar código"**.
+   Sale un código grande, formato `TALLER-XXXXXX` (6 caracteres al
+   azar, nunca secuencial), con botón **Copiar**.
+3. Orlan va al taller, verifica que existe, habla con el encargado y
+   le entrega el código.
+4. El encargado se registra como **Taller** y mete el código en el
+   campo **"Código de invitación"**. Sin código (o con uno que no
+   existe o ya se usó) el registro da error: "Ese código no es válido."
+5. Con código válido el taller entra **aprobado en ese momento** y ya
+   aparece en las búsquedas, primero que los de Google.
+6. El código sirve **una sola vez**: en la lista de códigos sale como
+   "USADO por <nombre> el <fecha>". El dueño puede **desactivar** un
+   código sin usar (ya no sirve); uno usado no se puede desactivar.
+7. Respaldo: el endpoint viejo `/api/workshop-approve` sigue
+   funcionando (el dueño puede quitarle y devolverle la aprobación a
+   un taller desde la API).
+
+### Datos técnicos
+- Tabla nueva `invite_codes` (ver `sql/codigos-invitacion.sql`):
+  `code` único, `note`, `created_by`, `used_by`, `used_at`,
+  `created_at`. **Hay que correr ese SQL en Supabase ANTES del
+  deploy** (lleva sus propios GRANT a `service_role`, igual que
+  `schema.sql` — sin ellos la API da "permission denied").
+- Endpoints nuevos (dueño, `requireOwner`): `POST
+  /api/invite-code-create` (body `{note}`), `GET
+  /api/invite-codes-list`, `POST /api/invite-code-deactivate` (body
+  `{code}`). El registro de taller (`POST /api/auth-register` con
+  `role: 'workshop'`) exige `inviteCode` y lo marca como usado antes
+  de devolver éxito; si marcarlo falla, el registro falla también.
+- Sin variables de entorno nuevas. El plan (Básico/Destacado/Premium)
+  sigue existiendo igual, sin cambios de lógica.
+
+### Plan gratis
+Por decisión de Orlan (2026-11-19, corregida el mismo día): los
+talleres **no pagan nada por ahora**. En la app dice solo
+**"Plan gratis."** — en el registro de taller (junto al plan) y en el
+panel del taller. Sin fechas, sin "pruebas", sin "hasta nuevo aviso".
+
+### Regla futura (NO implementada todavía, solo documentada)
+Cuando lleguen los planes de cobro, al taller se le dirá que si quiere
+moverse a un plan de pago, se empieza a cobrar; si no se quiere mover,
+se queda abajo en los resultados, más o menos por donde salen los de
+Google. Todavía no hay código para esto.
+
 ## Despliegue de esta versión (la app YA está en vivo)
 
 La app vive en https://tallerya-beryl.vercel.app/ (repo
 dustsince2026-oss/tallerya, Vercel proyecto "tallerya", Supabase
 proyecto "TallerYa"). Esta versión solo hay que subirla encima:
 
-### 1. Limpiar los talleres de ejemplo en Supabase (PRIMERO)
+### 1. Crear la tabla de códigos en Supabase (PRIMERO)
 En Supabase → proyecto TallerYa → **SQL Editor → New query**, pegar
-y correr `sql/quitar-talleres-ejemplo.sql` (`DELETE FROM google_shops;`
-+ verificación). La verificación debe dar **0**. Sin este paso, la
-tabla vieja queda con los 3 de ejemplo (el código nuevo ya no la lee,
-pero mejor vacía).
+y correr `sql/codigos-invitacion.sql`. Crea la tabla `invite_codes`
+con sus GRANT a `service_role`. La verificación del final debe dar
+**0** (tabla nueva, vacía). **Sin este paso el registro de talleres
+falla** (la tabla no existe).
+> Nota: la limpieza de los talleres de ejemplo
+> (`sql/quitar-talleres-ejemplo.sql`) ya se hizo en el deploy anterior;
+> si no se hubiera hecho, correrla también antes del deploy.
 
 ### 2. Subir el código a GitHub (rama main)
-Subir el contenido de `~/workspace/tallerya-google-places/` (sin
+Subir el contenido de `~/workspace/tallerya-codigos-taller/` (sin
 `data/` — está en `.gitignore`). Archivos nuevos o cambiados:
-`api/_lib/places.js` (nuevo), `api/_lib/handlers.js`, `api/_lib/store.js`,
-`api/_lib/seed.js`, `public/app.js`, `public/index.html`,
-`sql/seed.sql`, `sql/quitar-talleres-ejemplo.sql` (nuevo),
-`test/handlers.test.js`, `test/places.test.js` (nuevo), `README.md`.
+`api/_lib/handlers.js`, `api/_lib/store.js`, `public/app.js`,
+`public/index.html`, `server.js`, `sql/codigos-invitacion.sql` (nuevo),
+`test/handlers.test.js`, `test/places.test.js`,
+`test/codigos.test.js` (nuevo), `README.md`.
 Cada subida dispara el deploy automático en Vercel (~1 min).
 Recordar (lección del primer deploy 2026-11-19): el entrypoint en
 vivo es `server.js` (preset de Vercel "Node"); `vercel.json` lleva
@@ -254,11 +317,12 @@ sigue funcionando (solo talleres con la app + el aviso).
 3. Con la llave puesta → buscar "Choqué" → salen talleres REALES de
    hojalatería de Ensenada (con nombre, dirección y teléfono reales);
    buscar "Necesito grúa" → grúas reales.
-4. Registrar un taller de prueba → **no** debe aparecer en búsquedas
-   hasta aprobarlo.
-5. Aprobarlo (en Supabase poner `approved = true` al usuario, o usar
-   `/api/workshop-approve` con la sesión del dueño) → buscar otra vez
-   → el taller con la app sale PRIMERO, antes que los de Google.
+4. Registrar un taller de prueba **sin código** → debe dar error
+   "Ese código no es válido."
+5. Orlan (conductor, dueño) genera un código en **"Códigos de
+   invitación"** → el taller se registra con ese código → queda
+   aprobado y sale PRIMERO en "Choqué", antes que los de Google.
+   Registrar otro taller con el mismo código → error.
 6. Avisar al taller desde el conductor → revisar que llegue la
    solicitud al panel y la notificación.
 7. Revisar en Vercel → Logs que no haya errores 500.
