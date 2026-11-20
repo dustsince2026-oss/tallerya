@@ -7,17 +7,26 @@ let user = null;          // {id, name, email, role, phone, isOwner, approved}
 let workshop = null;      // {id, nombre, plan, activo} si el usuario es taller
 let profile = null;       // perfil del conductor: {carros, tieneSeguro, aseguradora, poliza, telAseg}
 let incident = null;      // incidente elegido {k, label, tipo, ...}
+let choqueModo = null;   // cómo quiere la ayuda al chocar (ver CHOQUE_MODOS)
+let mecanicoModo = null; // cómo quiere la ayuda al no arrancar (ver MECANICO_MODOS)
+let llanteraModo = null; // cómo quiere la ayuda de llantera (ver LLANTERA_MODOS)
+let gruaKm = null;       // km del traslado de la grúa (recogida → destino)
+let gruaDestino = '';    // adónde se lleva el vehículo (texto del conductor)
 let results = [];
 let currentShop = null;
 let carroElegido = null;
 let carrosVisibles = 1;
 let lat = null, lng = null;
+// Mapa de resultados (Leaflet + OpenStreetMap, gratis y sin llave).
+// Ensenada, centro, para cuando el conductor no comparte su ubicación.
+const ENSENADA = [31.866, -116.596];
+let mapa = null, marcadorYo = null, watchId = null;
 let fotoDataUrl = null;   // foto opcional del daño (data URL, máx 2 MB)
 let focosSel = {};
 let FOCOS = [];
 
 const INCIDENTS = [
-  { k: 'choque', label: '🚗 Choqué', sub: 'Carrocería/hojalatería y pintura · te dan el presupuesto', tipo: 'hojalateria',
+  { k: 'choque', label: '🚗 Choqué', sub: 'Carrocería/hojalatería', tipo: 'hojalateria',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres de carrocería/hojalatería cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte el taller de carrocería/hojalatería más cercano.' },
   { k: 'noarranca', label: '🔧 No arranca', sub: 'Mecánico o eléctrico', tipo: 'mecanico',
@@ -26,9 +35,9 @@ const INCIDENTS = [
   { k: 'grua', label: '🚛 Necesito grúa', sub: 'Arrastre al taller o a tu casa', tipo: 'grua',
     buscar: 'Buscar grúas cercanas', resTitle: 'Grúas cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte la grúa más cercana.' },
-  { k: 'electrico', label: '⚡ Falla eléctrica', sub: 'Eléctrico automotriz', tipo: 'electrico',
-    buscar: 'Buscar taller eléctrico', resTitle: 'Talleres eléctricos cerca de ti',
-    datosNote: 'Solo ocupamos esto para buscarte el taller eléctrico más cercano.' },
+  { k: 'llantera', label: '🛞 Llantera', sub: 'Llantas, ponchadura, balanceo', tipo: 'llantera',
+    buscar: 'Buscar llanteras cercanas', resTitle: 'Llanteras cerca de ti',
+    datosNote: 'Solo ocupamos esto para buscarte la llantera más cercana.' },
   { k: 'otro', label: '❓ Otro problema', sub: 'Descríbelo con tus palabras', tipo: 'otro',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres cerca de ti',
     datosNote: 'Descríbenos qué le pasa a tu carro para buscarte el taller adecuado.' },
@@ -203,13 +212,95 @@ INCIDENTS.forEach(inc => {
 function pickIncident(inc) {
   if (inc.k === 'foquito') { show('p-foquito'); return; }
   incident = inc;
+  choqueModo = null;
+  mecanicoModo = null;
+  llanteraModo = null;
+  gruaKm = null;
+  gruaDestino = '';
+  // Al chocar, al no arrancar y en llantera primero se pregunta CÓMO
+  // quiere la ayuda.
+  if (inc.k === 'choque') { show('p-choque-modo'); return; }
+  if (inc.k === 'noarranca') { show('p-mecanico-modo'); return; }
+  if (inc.k === 'llantera') { show('p-llantera-modo'); return; }
+  irADatos(inc);
+}
+
+function irADatos(inc) {
   document.getElementById('datosTitle').textContent = inc.label.replace(/^[^\s]+\s/, '') + ' — ¿Dónde estás?';
   document.getElementById('datosNote').textContent = inc.datosNote;
   document.getElementById('buscarBtn').textContent = inc.buscar;
   document.getElementById('otroBox').style.display = (inc.k === 'otro') ? 'block' : 'none';
+  // La grúa pide los dos lugares: dónde se recoge el vehículo y adónde
+  // se lleva. La recogida es tu ubicación actual por defecto.
+  document.getElementById('gruaBox').style.display = (inc.k === 'grua') ? 'block' : 'none';
+  if (inc.k === 'grua') {
+    gruaKm = null; gruaDestino = '';
+    document.getElementById('dRecogida').value = 'Mi ubicación actual';
+    document.getElementById('dDestino').value = '';
+    document.getElementById('gruaDistancia').textContent = '';
+  }
   renderCarroPicker();
   show('p-datos');
 }
+
+function pickChoqueModo(modo) {
+  choqueModo = modo;
+  irADatos(incident);
+}
+
+/* ---------- Modos de ayuda al chocar ---------- */
+const CHOQUE_MODOS = [
+  { k: 'lugar', label: '📍 Necesito asistencia/presupuesto en el lugar del percance', tag: 'URGENTE' },
+  { k: 'conduzco', label: '🚗 Necesito un presupuesto (yo conduzco el auto hasta el taller)', tag: null },
+  { k: 'domicilio', label: '🏠 Necesito un presupuesto a domicilio', tag: null },
+];
+const modosGrid = document.getElementById('choqueModos');
+CHOQUE_MODOS.forEach(m => {
+  const b = document.createElement('button');
+  b.className = 'big';
+  b.innerHTML = esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '');
+  b.onclick = () => pickChoqueModo(m);
+  modosGrid.appendChild(b);
+});
+
+function pickMecanicoModo(modo) {
+  mecanicoModo = modo;
+  irADatos(incident);
+}
+
+/* ---------- Modos de ayuda al no arrancar ---------- */
+const MECANICO_MODOS = [
+  { k: 'lugar', label: '📍 Necesito un mecánico en mi ubicación actual', tag: 'URGENTE' },
+  { k: 'domicilio', label: '🏠 Asistencia mecánica a domicilio', tag: null },
+  { k: 'conduzco', label: '🚗 Puedo manejar el carro hasta el taller', tag: null },
+];
+const mecanicoGrid = document.getElementById('mecanicoModos');
+MECANICO_MODOS.forEach(m => {
+  const b = document.createElement('button');
+  b.className = 'big';
+  b.innerHTML = esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '');
+  b.onclick = () => pickMecanicoModo(m);
+  mecanicoGrid.appendChild(b);
+});
+
+function pickLlanteraModo(modo) {
+  llanteraModo = modo;
+  irADatos(incident);
+}
+
+/* ---------- Modos de ayuda de llantera ---------- */
+const LLANTERA_MODOS = [
+  { k: 'domicilio', label: '🏠 Llantera a domicilio', tag: null },
+  { k: 'cercana', label: '📍 Necesito la llantera más cercana', tag: null },
+];
+const llanteraGrid = document.getElementById('llanteraModos');
+LLANTERA_MODOS.forEach(m => {
+  const b = document.createElement('button');
+  b.className = 'big';
+  b.innerHTML = esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '');
+  b.onclick = () => pickLlanteraModo(m);
+  llanteraGrid.appendChild(b);
+});
 
 /* ---------- Carros guardados (hasta 3) ---------- */
 function getCarros() {
@@ -336,6 +427,16 @@ function useLocation() {
       lat = pos.coords.latitude; lng = pos.coords.longitude;
       document.getElementById('locLine').textContent = '📍 Ubicación lista ✓';
       toast('Ubicación lista ✓');
+      ponerMarcadorYo();
+      // Seguir tu punto en vivo mientras la app está abierta: si te
+      // mueves, el punto azul del mapa se mueve contigo.
+      if (watchId == null && navigator.geolocation.watchPosition) {
+        watchId = navigator.geolocation.watchPosition(
+          p => { lat = p.coords.latitude; lng = p.coords.longitude; ponerMarcadorYo(); },
+          () => {},
+          { timeout: 10000, maximumAge: 10000 }
+        );
+      }
     },
     () => {
       document.getElementById('locLine').textContent = 'No pudimos tomar tu ubicación. Buscamos con la zona de Ensenada.';
@@ -371,9 +472,78 @@ function carroManual() {
   };
 }
 
+/* ---------- Mapa en vivo (resultados) ---------- */
+// Tu punto azul en el mapa. Si el mapa aún no existe (estás en otra
+// pantalla), no hace nada: se pinta cuando se abre el mapa.
+function ponerMarcadorYo() {
+  if (!mapa || lat == null || lng == null || typeof L === 'undefined') return;
+  if (marcadorYo) { marcadorYo.setLatLng([lat, lng]); return; }
+  const yo = L.divIcon({ className: '', html: '<div class="pin-yo"></div>', iconSize: [20, 20], iconAnchor: [10, 10] });
+  marcadorYo = L.marker([lat, lng], { icon: yo }).addTo(mapa);
+  marcadorYo.bindPopup('📍 Tú estás aquí');
+}
+function initMapa() {
+  const nota = document.getElementById('mapaNota');
+  // Sin Leaflet (sin internet para el CDN) la lista de abajo sigue
+  // funcionando igual: el mapa es un extra, no un requisito.
+  if (typeof L === 'undefined') {
+    nota.textContent = 'El mapa no cargó (revisa tu conexión). La lista de talleres está abajo.';
+    return;
+  }
+  if (mapa) { mapa.remove(); mapa = null; marcadorYo = null; }
+  const tengoUbicacion = lat != null && lng != null;
+  const centro = tengoUbicacion ? [lat, lng] : ENSENADA;
+  mapa = L.map('mapaResultados', { zoomControl: true }).setView(centro, 13);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19, attribution: '© OpenStreetMap',
+  }).addTo(mapa);
+  if (tengoUbicacion) ponerMarcadorYo();
+  // Pines dorados: solo los talleres que tienen su ubicación guardada.
+  // Los que no la tienen no inventan un pin: salen solo en la lista.
+  const conCoord = results.filter(s => s.lat != null && s.lng != null);
+  conCoord.forEach(s => {
+    const i = results.indexOf(s);
+    const pin = L.divIcon({ className: '', html: '<div class="pin-taller"></div>', iconSize: [30, 42], iconAnchor: [15, 42], popupAnchor: [0, -40] });
+    const m = L.marker([Number(s.lat), Number(s.lng)], { icon: pin }).addTo(mapa);
+    m.bindPopup('<b>' + esc(s.nombre) + '</b><br>' + esc(s.esp) + '<br>' + Number(s.distKm).toFixed(1) + ' km' +
+      '<br><button class="mini-btn" onclick="openShop(' + i + ')">Ver taller</button>');
+  });
+  if (!tengoUbicacion) {
+    nota.textContent = 'Mapa centrado en Ensenada. Pica “Usar mi ubicación” en la pantalla anterior para verte en el mapa.';
+  } else if (!conCoord.length) {
+    nota.textContent = 'Estos talleres no tienen su ubicación guardada todavía, por eso no salen pines en el mapa.';
+  } else {
+    nota.textContent = '';
+    // Que se vean tu punto y todos los pines a la vez.
+    const pts = [[lat, lng]].concat(conCoord.map(s => [Number(s.lat), Number(s.lng)]));
+    mapa.fitBounds(pts, { padding: [24, 24] });
+  }
+  // El mapa se armó justo al mostrar la pantalla: recalcular su tamaño.
+  setTimeout(() => { if (mapa) mapa.invalidateSize(); }, 60);
+}
+
 /* ---------- Pantalla 3: resultados ---------- */
 async function searchShops() {
   if (!incident) incident = INCIDENTS.find(i => i.k === 'otro');
+  // Grúa: sin destino no hay traslado que calcular; y los km se
+  // calculan ANTES de buscar, para que salgan en los resultados.
+  if (incident.k === 'grua') {
+    const destino = document.getElementById('dDestino').value.trim();
+    if (!destino) { toast('Escribe adónde se lleva el vehículo.'); return; }
+    gruaDestino = destino;
+    gruaKm = null;
+    if (lat != null && lng != null) {
+      try {
+        const d = await api('/api/grua-distancia', { method: 'POST', body: { origenLat: lat, origenLng: lng, destino } });
+        gruaKm = d.km;
+        document.getElementById('gruaDistancia').textContent = 'Distancia del traslado: ' + Number(d.km).toFixed(1) + ' km';
+      } catch (e) {
+        document.getElementById('gruaDistancia').textContent = 'No se pudo calcular la distancia: ' + e.message;
+      }
+    } else {
+      document.getElementById('gruaDistancia').textContent = 'Activa tu ubicación para calcular los km del traslado.';
+    }
+  }
   const q = new URLSearchParams({ incident: incident.k });
   if (incident.k === 'foquito' && incident.tipo) q.set('tipo', incident.tipo);
   if (lat != null && lng != null) { q.set('lat', lat); q.set('lng', lng); }
@@ -391,7 +561,11 @@ async function searchShops() {
     }
     const carro = carroElegido || carroManual();
     const carroTxt = carro ? ' · ' + carroLabel(carro) : '';
-    document.getElementById('resSub').textContent = desc + 'Para: ' + incident.label.replace(/^[^\s]+\s/, '') + carroTxt + ' · Ensenada.';
+    const modoTxt = (incident.k === 'choque' && choqueModo) ? ' · ' + choqueModo.label.replace(/^[^\s]+\s/, '')
+      : (incident.k === 'noarranca' && mecanicoModo) ? ' · ' + mecanicoModo.label.replace(/^[^\s]+\s/, '')
+      : (incident.k === 'llantera' && llanteraModo) ? ' · ' + llanteraModo.label.replace(/^[^\s]+\s/, '') : '';
+    const gruaTxt = (incident.k === 'grua' && gruaKm != null) ? ' · Traslado: ' + gruaKm.toFixed(1) + ' km' : '';
+    document.getElementById('resSub').textContent = desc + 'Para: ' + incident.label.replace(/^[^\s]+\s/, '') + carroTxt + modoTxt + gruaTxt + ' · Ensenada.';
     document.getElementById('resHint').textContent = (incident.k === 'otro')
       ? '¿No te convence ninguno? Vuelve atrás y ajusta tu descripción.'
       : '¿No te convence ninguno? Pica “Otro problema” en el inicio y descríbelo.';
@@ -403,13 +577,23 @@ async function searchShops() {
     results.forEach((s, i) => {
       const div = document.createElement('div');
       div.className = 'card';
+      // Presupuesto o asistencia fuera del taller (en el lugar del
+      // percance, a domicilio, o donde se quedó el carro): el taller
+      // pone su precio; cubre servicio, tiempo y traslado. Si el
+      // cliente lleva el carro, no hay costo extra.
+      const fueraTaller = (incident.k === 'choque' && choqueModo && choqueModo.k !== 'conduzco')
+        || (incident.k === 'noarranca' && mecanicoModo && mecanicoModo.k !== 'conduzco')
+        || (incident.k === 'llantera' && llanteraModo && llanteraModo.k === 'domicilio');
+      const visita = (fueraTaller && s.enApp)
+        ? '<br>' + (incident.k === 'choque' ? 'Presupuesto' : 'Asistencia') + ' fuera del taller: <b>' + (s.costoVisita != null ? '$' + Number(s.costoVisita).toLocaleString('es-MX') + ' MXN' : 'a convenir') + '</b> <span class="muted">(servicio, tiempo y traslado)</span>'
+        : '';
       div.innerHTML =
         '<h3>' + esc(s.nombre) + (s.enApp ? '<span class="badge prem">✓ En la app</span>' : '<span class="badge">De Google</span>') +
         (s.plan === 'Premium' ? '<span class="badge prem">★ PREMIUM</span>' : (s.plan === 'Destacado' ? '<span class="badge">DESTACADO</span>' : '')) + '</h3>' +
         '<div class="esp">' + esc(s.esp) + '</div>' +
         '<div class="meta"><span class="stars">' + stars(s.rating) + '</span> ' + s.rating + ' (' + s.opiniones + ' opiniones)<br>' +
         '📍 ' + s.distKm.toFixed(1) + ' km · ' + esc(s.zona) + '<br>' +
-        '<span class="open">● Abierto ahora</span> · ' + esc(s.horario) + '</div>' +
+        '<span class="open">● Abierto ahora</span> · ' + esc(s.horario) + visita + '</div>' +
         '<div class="actions">' +
           '<a class="call" href="tel:' + esc(s.tel) + '" onclick="trackLlamada(' + qid(s.id) + ', \'' + s.source + '\')">📞 Llamar</a>' +
           '<a class="wa" href="https://wa.me/52' + esc(s.tel.replace(/\D/g, '')) + '" target="_blank" rel="noopener">💬 WhatsApp</a>' +
@@ -421,6 +605,7 @@ async function searchShops() {
       list.appendChild(div);
     });
     show('p-resultados');
+    initMapa();
   } catch (e) { toast(e.message); }
 }
 async function trackLlamada(shopId, source) {
@@ -448,7 +633,9 @@ async function openShop(i) {
       '<div class="meta"><span class="stars">' + stars(sh.rating) + '</span> ' + sh.rating + ' (' + sh.opiniones + ' opiniones)<br>' +
       '📍 ' + sh.distKm.toFixed(1) + ' km · ' + esc(sh.dir) + '<br>' +
       '<span class="open">● Abierto ahora</span> · ' + esc(sh.horario) + '<br>' +
-      (sh.servicios ? '🛠 ' + esc(sh.servicios) : '') + '</div>';
+      (sh.servicios ? '🛠 ' + esc(sh.servicios) : '') +
+      ((incident && incident.k === 'choque' && choqueModo && choqueModo.k !== 'conduzco' && sh.enApp)
+        ? '<br>Presupuesto fuera del taller: <b>' + (sh.costoVisita != null ? '$' + Number(sh.costoVisita).toLocaleString('es-MX') + ' MXN' : 'a convenir') + '</b> <span class="muted">(servicio, tiempo y traslado)</span>' : '') + '</div>';
     if (sh.ofertas && sh.ofertas.length) {
       html += '<h2 style="margin-top:22px;">Ofertas</h2>';
       sh.ofertas.forEach(o => {
@@ -552,7 +739,44 @@ async function notifyShop(i) {
   if (!s || !s.enApp) { toast('Ese taller aún no tiene la app.'); return; }
   if (!user) { toast('Inicia sesión para avisarle al taller.'); show('p-auth'); return; }
   const carro = carroElegido || carroManual();
-  const descripcion = incident && incident.k === 'otro' ? document.getElementById('otroDesc').value.trim() : '';
+  let descripcion = '';
+  if (incident && incident.k === 'otro') descripcion = document.getElementById('otroDesc').value.trim();
+  else if (incident && incident.k === 'choque' && choqueModo) {
+    // El modo lleva un emoji al inicio (como los botones); se quita para
+    // el texto que ve el taller y el que sale en resultados.
+    const modoLabel = choqueModo.label.replace(/^[^\s]+\s/, '');
+    descripcion = (choqueModo.tag ? choqueModo.tag + ': ' : '') + modoLabel;
+    // Si el taller va al cliente (lugar del percance o domicilio), el
+    // aviso lleva el costo por la visita que el taller puso en su panel.
+    if (choqueModo.k !== 'conduzco') descripcion += (s.costoVisita != null ? ' (costo por la visita: $' + Number(s.costoVisita).toLocaleString('es-MX') + ' MXN)' : ' (costo por la visita a convenir)');
+  }
+  else if (incident && incident.k === 'noarranca' && mecanicoModo) {
+    // Igual que Choqué: se quita el emoji inicial del texto del taller.
+    // La asistencia fuera del taller (donde se quedó el carro o a
+    // domicilio) SÍ lleva el costo por la visita que el taller puso en
+    // su panel, igual que los presupuestos del carrocero.
+    const modoLabel = mecanicoModo.label.replace(/^[^\s]+\s/, '');
+    descripcion = (mecanicoModo.tag ? mecanicoModo.tag + ': ' : '') + modoLabel;
+    if (mecanicoModo.k !== 'conduzco') descripcion += (s.costoVisita != null ? ' (costo por la visita: $' + Number(s.costoVisita).toLocaleString('es-MX') + ' MXN)' : ' (costo por la visita a convenir)');
+  }
+  else if (incident && incident.k === 'llantera' && llanteraModo) {
+    // Igual que los demás: se quita el emoji inicial del texto del taller.
+    // La llantera a domicilio SÍ lleva costo por la visita (decisión de
+    // Orlan 2026-11-20 ~00:40), igual que el mecánico y el carrocero.
+    const modoLabel = llanteraModo.label.replace(/^[^\s]+\s/, '');
+    descripcion = (llanteraModo.tag ? llanteraModo.tag + ': ' : '') + modoLabel;
+    if (llanteraModo.k === 'domicilio') descripcion += (s.costoVisita != null ? ' (costo por la visita: $' + Number(s.costoVisita).toLocaleString('es-MX') + ' MXN)' : ' (costo por la visita a convenir)');
+  }
+  else if (incident && incident.k === 'grua') {
+    // La grúa lleva los dos lugares y los km del traslado, si se
+    // pudieron calcular. La recogida es el texto que escribió el
+    // conductor (por defecto "Mi ubicación actual").
+    const recogida = document.getElementById('dRecogida').value.trim();
+    descripcion = 'Necesito grúa';
+    if (recogida) descripcion += ' · Recoger en: ' + recogida;
+    if (gruaDestino) descripcion += ' · Llevar a: ' + gruaDestino;
+    if (gruaKm != null) descripcion += ' (' + gruaKm.toFixed(1) + ' km)';
+  }
   try {
     const d = await api('/api/notify', {
       method: 'POST',
@@ -656,6 +880,7 @@ function renderPanel(d) {
   document.getElementById('pZona').value = t.zona || '';
   document.getElementById('pDireccion').value = t.direccion || '';
   document.getElementById('pServiciosTexto').value = t.serviciosTexto || '';
+  document.getElementById('pCostoVisita').value = (t.costoVisita == null ? '' : t.costoVisita);
   document.getElementById('pGrua').checked = !!t.tieneGrua;
   document.getElementById('pDomicilio').checked = !!t.aDomicilio;
 
@@ -711,6 +936,7 @@ async function savePerfil() {
         zona: document.getElementById('pZona').value.trim(),
         direccion: document.getElementById('pDireccion').value.trim(),
         servicios: document.getElementById('pServiciosTexto').value.trim(),
+        costoVisita: document.getElementById('pCostoVisita').value.trim(),
         tieneGrua: document.getElementById('pGrua').checked,
         aDomicilio: document.getElementById('pDomicilio').checked,
       },
@@ -812,8 +1038,35 @@ async function desactivarCodigo(code) {
   } catch (e) { toast(e.message); }
 }
 
+/* ---------- Carrusel del inicio ---------- */
+// 3 imágenes originales que cambian solas cada 5 segundos, con su
+// frase. Los puntitos dejan cambiar de imagen a mano.
+let carruselIdx = 0;
+let carruselTimer = null;
+function pintarCarrusel() {
+  const track = document.getElementById('carruselTrack');
+  if (!track) return;
+  track.style.transform = 'translateX(-' + (carruselIdx * 100) + '%)';
+  document.querySelectorAll('#carruselPuntos button').forEach((b, i) => b.classList.toggle('sel', i === carruselIdx));
+}
+function initCarrusel() {
+  const track = document.getElementById('carruselTrack');
+  const puntos = document.getElementById('carruselPuntos');
+  if (!track || !puntos || puntos.children.length) return;
+  const n = track.children.length;
+  for (let i = 0; i < n; i++) {
+    const b = document.createElement('button');
+    b.setAttribute('aria-label', 'Imagen ' + (i + 1));
+    b.onclick = () => { carruselIdx = i; pintarCarrusel(); };
+    puntos.appendChild(b);
+  }
+  pintarCarrusel();
+  carruselTimer = setInterval(() => { carruselIdx = (carruselIdx + 1) % n; pintarCarrusel(); }, 5000);
+}
+
 /* ---------- Inicio ---------- */
 (async function init() {
+  initCarrusel();
   await loadFocos();
   if (getToken()) {
     try {
