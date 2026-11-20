@@ -195,13 +195,17 @@ let ownerToken, workshopId;
 test('búsqueda con llave: talleres con la app primero, después Google real', async () => {
   const o = await call('register', { name: 'Orlan', email: 'dueno@tallerya.mx', password: 'secreto1', role: 'driver' });
   ownerToken = o.data.token;
+  // El taller entra con código de invitación (verificado en persona) y
+  // queda aprobado en ese momento, sin paso extra.
+  const c = await call('invite-code-create', { note: 'Hojalatería El Faro' }, ownerToken);
   const w = await call('register', {
     name: 'El Faro', email: 'faro@taller.mx', password: 'secreto1', role: 'workshop',
     tallerNombre: 'Hojalatería y Pintura El Faro', especialidad: 'Hojalatería y pintura',
     zona: 'Valle Verde, Ensenada', whatsapp: '646 111 2233', plan: 'Destacado',
+    inviteCode: c.data.codigo.code,
   });
+  assert.equal(w.data.user.approved, true);
   workshopId = w.data.workshop.id;
-  await call('approve-workshop', { userId: w.data.user.id, aprobado: true }, ownerToken);
 
   process.env.GOOGLE_PLACES_API_KEY = FAKE_KEY;
   const restore = stubFetch(async (url) => {
