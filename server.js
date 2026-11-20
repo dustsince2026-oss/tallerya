@@ -46,6 +46,9 @@ const ROUTES = {
   'notifications-read': 'mark-notifications-read',
   'track-event': 'track-event',
   'workshop-approve': 'approve-workshop',
+  'invite-code-create': 'invite-code-create',
+  'invite-codes-list': 'invite-codes-list',
+  'invite-code-deactivate': 'invite-code-deactivate',
 };
 
 function readBody(req) {
