@@ -537,26 +537,69 @@ sigue funcionando (solo talleres con la app + el aviso).
   reverse-geocode en vivo sigue dando "Avenida Ignacio López Rayón,
   Independencia, Ensenada". **CONFIRMADO por Orlan en su teléfono
   ~01:39 (reportó un fallo, ver abajo).**
-- **Fallo reportado por Orlan ~01:39 (CONSTRUIDO, pendiente subir en
-  vivo):** si ponías la ubicación con el botón, la borrabas y volvías
-  a picar el botón, ya no se ponía. Causa: `useLocation()` solo
-  llenaba el cuadro si el modo seguía en 'gps', y al borrarlo el modo
-  cambiaba a 'manual'. Arreglo: el botón "Usar mi ubicación" SIEMPRE
-  vuelve a poner tu ubicación en el cuadro cuando estás en la grúa,
-  sin importar el modo anterior. Cambios: app.js (una condición),
-  test/grua.test.js (prueba nueva que repite exactamente lo que hizo
-  Orlan: llenar → borrar → volver a picar → se vuelve a poner).
-  Suite 87/87.
+- **Fallo reportado por Orlan ~01:39 (DESPLEGADO EN VIVO 2026-11-20
+  ~01:46 y VERIFICADO con curl por Bibi** (3 archivos/3 commits,
+  último e892e64; Vercel Ready): si ponías la ubicación con el botón,
+  la borrabas y volvías a picar el botón, ya no se ponía. Causa:
+  `useLocation()` solo llenaba el cuadro si el modo seguía en 'gps',
+  y al borrarlo el modo cambiaba a 'manual'. Arreglo: el botón "Usar
+  mi ubicación" SIEMPRE vuelve a poner tu ubicación en el cuadro
+  cuando estás en la grúa, sin importar el modo anterior. app.js en
+  vivo idéntico a la carpeta (md5 30f5b1f7), reverse-geocode en vivo
+  sigue dando "Avenida Ignacio López Rayón, Independencia, Ensenada".
+  **Pendiente: confirmación de Orlan en su teléfono.**
 - **Dirección escrita abajo del botón (pedido de Orlan ~01:41,
-  CONSTRUIDO, pendiente subir en vivo):** al picar "Usar mi
-  ubicación" ahora aparece abajo, en letras blancas, la dirección
-  escrita ("Av. Rayón 273, Independencia") para que el conductor se
-  asegure de que sí se leyó su ubicación. La pantalla de datos es la
-  misma para todos los incidentes, así que sale en choque, no
-  arranca, grúa, llantera y otro. Si no hay internet para buscar la
-  dirección, queda el "Ubicación lista ✓" de antes. Cambios: app.js
-  (nueva función `mostrarDireccionActual`), test/grua.test.js
-  (prueba nueva). Suite 87/87.
+  DESPLEGADO EN VIVO 2026-11-20 ~01:46 con el mismo deploy,
+  VERIFICADO con curl por Bibi):** al picar "Usar mi ubicación"
+  ahora aparece abajo, en letras blancas, la dirección escrita
+  ("Av. Rayón 273, Independencia") para que el conductor se asegure
+  de que sí se leyó su ubicación. La pantalla de datos es la misma
+  para todos los incidentes, así que sale en choque, no arranca,
+  grúa, llantera y otro. Si no hay internet para buscar la dirección,
+  queda el "Ubicación lista ✓" de antes. Suite 87/87.
+- **Domicilio a mano para servicios a domicilio (pedido de Orlan
+  ~01:50, CONSTRUIDO, pendiente subir en vivo):** cuando el servicio
+  es a domicilio (presupuesto o asistencia en casa) sale la casilla
+  "¿En qué domicilio es el servicio?" — por defecto trae tu ubicación
+  actual, y si no estás en tu casa, el enlace "Escribir la dirección
+  a mano" abre el cuadro para escribir el domicilio. Los talleres se
+  buscan cerca DEL DOMICILIO (no de donde estás tú) y el aviso al
+  taller lleva la dirección ("· Domicilio: ..."). Nueva ruta POST
+  /api/geocode (Nominatim, gratis, sin llave, con ", Ensenada" para
+  no caer en Mexicali). Cambios: index.html (casilla), app.js
+  (esDomicilio/setOrigenDomicilio/domicilioTexto, búsqueda por
+  domicilio, aviso con domicilio), handlers.js + server.js (ruta
+  geocode), test/domicilio.test.js (11 pruebas nuevas),
+  test/modos.test.js (2 pruebas actualizadas al nuevo aviso).
+  Suite 98/98. Prueba real con Nominatim: "Av. Rayón 273,
+  Ensenada" → 31.86122, -116.610283, Ensenada.
+- **Logo sin esquinas blancas (pedido de Orlan ~01:53, CONSTRUIDO,
+  pendiente subir en vivo):** logo.png, icon-192.png e icon-512.png
+  eran PNG sin transparencia con las esquinas blancas y se veían
+  feas sobre el fondo azul oscuro. Ahora el fondo (blanco de las
+  esquinas + cuadro negro) es transparente y solo queda el pin
+  dorado con la llave. Verificado sobre #0b1622: las esquinas ya son
+  el color del fondo. Script: `~/workspace/your_files/make_logo_tallerya_transparente.py`.
+- **Foquitos con IA (pedido de Orlan ~01:54, CONSTRUIDO, frente
+  pendiente subir en vivo):** al tomar la foto del tablero, Gemini
+  marca solos los foquitos prendidos (misma IA y mismo patrón que
+  la lectura de dorsales de OnlyClick). Nueva ruta POST
+  /api/focos-leer-foto { dataBase64, mimeType } → { ok, focos: [ids] };
+  solo devuelve ids de la lista conocida (nunca inventa); sin
+  GEMINI_API_KEY devuelve no-key y queda la lista manual; la foto
+  no se guarda. Frente: al elegir la foto sale "Leyendo la foto con
+  inteligencia artificial…" y se marcan las casillas; el conductor
+  revisa y corrige antes de "Ver qué significa". Cambios:
+  handlers.js (geminiVisionJson + leerFocosFoto + ruta), server.js
+  (ROUTES), index.html (línea de estado + nota actualizada),
+  app.js (leerFotoTablero), test/foquitos-ia.test.js (10 pruebas).
+  Suite 108/108. **OJO — el backend YA ESTÁ EN VIVO sin querer:**
+  el deploy del domicilio subió handlers.js (commit 2766e7b) con el
+  código de foquitos incluido porque el archivo se reexpidió después
+  de construirlo; la ruta está dormida (nadie la llama sin el frente
+  y sin la llave). La llave GEMINI_API_KEY la está poniendo el
+  navegador (crear en AI Studio + Vercel + redeploy) por pedido de
+  Orlan ~02:02.
 
 - El flujo actual de grúa solo pide dónde está el carro (un solo
   lugar, por GPS); NO hay dos cuadritos de recoger/llevar. Sí se puede
