@@ -613,18 +613,21 @@ sigue funcionando (solo talleres con la app + el aviso).
   la GEMINI_API_KEY de OnlyClick (esa sí lee dorsales, tiene cuota)
   en vez de la nueva — el navegador la copia de las env vars de
   OnlyClick en Vercel a las de TallerYa y redespliega.**
-- **"Yo conduzco" sin ubicación (pedido de Orlan ~02:11, CONSTRUIDO,
-  pendiente subir en vivo):** en los modos donde el conductor lleva
-  el carro al taller (Choqué "yo conduzco" y No arranca "puedo
-  manejar") se QUITÓ el botón "Usar mi ubicación": la pantalla ya no
-  pide dónde está y la búsqueda va sin coordenadas (el aviso al
-  taller tampoco lleva coordenadas). El título cambia a "Tú llevas
-  el carro al taller". La llantera "más cercana" SÍ sigue pidiendo
-  ubicación (si no, no se sabe cuál queda más cerca) y el domicilio
-  también (su ubicación por defecto es la actual). Cambios:
-  index.html (el botón y la línea ahora van en #locBox),
-  app.js (esConduzco + irADatos esconde el cuadro), test
-  /conduzco.test.js (6 pruebas nuevas). Suite 114/114.
+- **"Yo conduzco" sin ubicación (pedido de Orlan ~02:11, DESPLEGADO EN
+  VIVO 2026-11-20 ~02:18 y VERIFICADO con curl por Bibi):** en los
+  modos donde el conductor lleva el carro al taller (Choqué "yo
+  conduzco" y No arranca "puedo manejar") se QUITÓ el botón "Usar mi
+  ubicación": la pantalla ya no pide dónde está y la búsqueda va sin
+  coordenadas (el aviso al taller tampoco lleva coordenadas). El
+  título cambia a "Tú llevas el carro al taller". La llantera "más
+  cercana" SÍ sigue pidiendo ubicación (si no, no se sabe cuál queda
+  más cerca) y el domicilio también (su ubicación por defecto es la
+  actual). Cambios: index.html (el botón y la línea ahora van en
+  #locBox, commit 1c69c6a), app.js (esConduzco + irADatos esconde el
+  cuadro, commit 29e78aa), test/conduzco.test.js (6 pruebas nuevas,
+  commit 6037e85), README (commit 963a1ec). Suite 114/114.
+  Verificado en vivo: home 200, app.js vivo con el mismo md5 que la
+  carpeta, locBox presente.
 - **Icono cuadrado con fondo negro (pedido de Orlan ~02:16, CONSTRUIDO,
   pendiente subir en vivo):** icon-192.png e icon-512.png ahora son
   cuadrados de fondo negro sólido con el pin dorado (como los iconos
