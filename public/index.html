@@ -3,146 +3,185 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0b1622">
+<meta name="theme-color" content="#0F172A">
 <title>TallerYa — Ayuda para tu carro, sin vueltas</title>
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/lucide@latest"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; }
   body {
-    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
-    background: #0b1622;
-    color: #f2f6fa;
+    font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    background: #050811;
+    color: #f1f5f9;
     -webkit-tap-highlight-color: transparent;
   }
-  .app { max-width: 480px; margin: 0 auto; min-height: 100%; padding: 14px 16px 110px; }
+  .app { max-width: 480px; margin: 0 auto; min-height: 100%; padding: 14px 16px 110px; background: #0F172A; }
   .screen { display: none; }
   .screen.active { display: block; }
-  .logo { font-size: 26px; font-weight: 800; letter-spacing: .5px; display: flex; align-items: center; gap: 10px; }
-  .logo img { width: 44px; height: 44px; border-radius: 12px; }
-  .logo span { color: #f5b301; }
-  .tag { color: #9fb2c8; font-size: 15px; margin: 4px 0 18px; }
-  h1 { font-size: 26px; line-height: 1.2; margin: 6px 0 8px; }
-  h2 { font-size: 22px; line-height: 1.25; margin: 6px 0 10px; }
-  .calm { color: #c6d4e2; font-size: 17px; line-height: 1.45; margin-bottom: 18px; }
-  .muted { color: #9fb2c8; font-size: 14px; line-height: 1.45; }
+  .logo { font-size: 22px; font-weight: 800; letter-spacing: -.5px; display: flex; align-items: center; gap: 10px; }
+  .logo img { width: 40px; height: 40px; border-radius: 12px; }
+  .logo span { color: #F59E0B; }
+  .tag { color: #94a3b8; font-size: 13px; margin: 4px 0 18px; }
+  h1 { font-size: 24px; line-height: 1.25; margin: 6px 0 8px; font-weight: 700; letter-spacing: -.5px; }
+  h2 { font-size: 20px; line-height: 1.25; margin: 6px 0 10px; font-weight: 700; letter-spacing: -.5px; }
+  .calm { color: #cbd5e1; font-size: 15px; line-height: 1.5; margin-bottom: 18px; }
+  .muted { color: #94a3b8; font-size: 14px; line-height: 1.45; }
   .grid { display: flex; flex-direction: column; gap: 12px; }
+  /* Rejilla 2x2 de servicios (diseño nuevo): tarjetas oscuras con icono */
+  #incidentGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   button.big {
-    width: 100%; min-height: 76px; border: none; border-radius: 16px;
-    background: rgba(245, 179, 1, .85); color: #1a1a1a; font-size: 21px; font-weight: 700;
-    cursor: pointer; text-align: left; padding: 14px 18px; line-height: 1.2;
-    box-shadow: 0 2px 0 #12263f;
+    width: 100%; min-height: 126px; border: 1px solid #334155; border-radius: 16px;
+    background: #1E293B; color: #f1f5f9; font-size: 15px; font-weight: 700;
+    cursor: pointer; text-align: left; padding: 16px; line-height: 1.2;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 12px;
+    transition: border-color .2s, background .2s;
+    font-family: inherit;
   }
-  button.big small { display: block; font-size: 14px; font-weight: 400; color: #3a3a3a; margin-top: 3px; }
-  button.big:active { background: rgba(245, 179, 1, .95); }
-  button.big.sel { outline: 3px solid #1a1a1a; background: rgba(245, 179, 1, .95); }
+  button.big small { display: block; font-size: 11px; font-weight: 400; color: #94a3b8; margin-top: 2px; line-height: 1.35; }
+  button.big:active { background: #24344d; }
+  button.big.sel { outline: 2px solid #F59E0B; background: #24344d; }
+  /* Icono de línea estilo Lucide dentro de una tarjeta: cuadro ámbar */
+  .inc-ico {
+    width: 44px; height: 44px; border-radius: 12px; flex: none;
+    background: rgba(245,158,11,.15); border: 1px solid rgba(245,158,11,.2);
+    color: #F59E0B; display: flex; align-items: center; justify-content: center;
+  }
+  .inc-ico svg { width: 20px; height: 20px; }
+  .inc-txt b { display: block; font-size: 15px; font-weight: 700; color: #fff; }
+  .inc-txt small { display: block; font-size: 11px; font-weight: 400; color: #94a3b8; margin-top: 2px; line-height: 1.35; }
+  /* Otro problema y Foquito: tarjeta horizontal a todo lo ancho */
+  button.big.wide { grid-column: 1 / -1; min-height: 0; flex-direction: row; align-items: center; gap: 14px; }
+  button.big.wide .inc-txt { flex: 1; }
+  .inc-chev { color: #94a3b8; display: flex; align-items: center; flex: none; }
+  .inc-chev svg { width: 16px; height: 16px; }
+  /* En las tarjetas 2x2 no va flecha; solo en las horizontales */
+  .big:not(.wide) .inc-chev { display: none; }
+  /* El selector de carro usa el mismo botón pero compacto */
+  #carroPicker button.big { min-height: 60px; flex-direction: row; align-items: center; gap: 12px; }
+  #carroPicker button.big .inc-ico { width: 36px; height: 36px; }
   button.primary {
-    width: 100%; min-height: 64px; border: none; border-radius: 16px;
-    background: #f5b301; color: #1a1a1a; font-size: 20px; font-weight: 800;
-    cursor: pointer; margin-top: 16px;
+    width: 100%; min-height: 56px; border: none; border-radius: 16px;
+    background: #F59E0B; color: #0F172A; font-size: 18px; font-weight: 800;
+    cursor: pointer; margin-top: 16px; font-family: inherit;
+    box-shadow: 0 0 20px -5px rgba(245,158,11,.35);
   }
-  button.primary:active { background: #d99e00; }
+  button.primary:active { background: #D97706; }
   button.ghost {
-    width: 100%; min-height: 56px; border: 2px solid #2b4a68; border-radius: 16px;
-    background: transparent; color: #cfe0ef; font-size: 17px; font-weight: 600;
-    cursor: pointer; margin-top: 10px;
+    width: 100%; min-height: 52px; border: 2px solid #334155; border-radius: 16px;
+    background: transparent; color: #e2e8f0; font-size: 16px; font-weight: 600;
+    cursor: pointer; margin-top: 10px; font-family: inherit;
   }
   button.link {
-    background: none; border: none; color: #7fb3e8; font-size: 16px;
-    padding: 10px 4px; cursor: pointer; text-decoration: underline;
+    background: none; border: none; color: #FBBF24; font-size: 16px;
+    padding: 10px 4px; cursor: pointer; text-decoration: underline; font-family: inherit;
   }
   .links { display: flex; flex-direction: column; align-items: center; margin-top: 16px; }
   .saved { text-align: center; color: #8fce9b; font-size: 15px; margin-top: 8px; min-height: 20px; }
-  .back { background: none; border: none; color: #7fb3e8; font-size: 16px; padding: 6px 0 12px; cursor: pointer; }
+  .back { background: none; border: none; color: #FBBF24; font-size: 16px; padding: 6px 0 12px; cursor: pointer; font-family: inherit; }
   label { display: block; font-size: 15px; font-weight: 600; margin: 14px 0 6px; }
   input, select, textarea {
-    width: 100%; min-height: 52px; border-radius: 12px; border: 2px solid #2b4a68;
-    background: #12263f; color: #fff; font-size: 17px; padding: 10px 12px;
+    width: 100%; min-height: 52px; border-radius: 12px; border: 2px solid #334155;
+    background: #0F172A; color: #fff; font-size: 17px; padding: 10px 12px;
     font-family: inherit;
   }
-  input:focus, select:focus, textarea:focus { outline: 2px solid #f5b301; border-color: #f5b301; }
+  input:focus, select:focus, textarea:focus { outline: 2px solid #F59E0B; border-color: #F59E0B; }
   textarea { min-height: 80px; resize: vertical; }
   .row2 { display: flex; gap: 10px; }
   .row2 > div { flex: 1; }
   .note {
-    background: #12263f; border: 1px solid #2b4a68; border-radius: 12px;
-    padding: 12px; font-size: 14.5px; line-height: 1.5; color: #c6d4e2; margin-top: 14px;
+    background: #152036; border: 1px solid #334155; border-radius: 12px;
+    padding: 12px; font-size: 14.5px; line-height: 1.5; color: #cbd5e1; margin-top: 14px;
   }
-  .seguro-box { border: 2px solid #2b4a68; border-radius: 14px; padding: 12px; margin-top: 16px; }
+  .seguro-box { border: 2px solid #334155; border-radius: 14px; padding: 12px; margin-top: 16px; }
   .seguro-box .seg-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
   .check-row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
-  .check-row input { width: 26px; height: 26px; min-height: 26px; accent-color: #f5b301; }
+  .check-row input { width: 26px; height: 26px; min-height: 26px; accent-color: #F59E0B; }
   .check-row span { font-size: 17px; }
   .card {
-    background: #16283f; border: 1px solid #243850; border-radius: 16px;
+    background: #1E293B; border: 1px solid #334155; border-radius: 16px;
     padding: 16px; margin-bottom: 12px; cursor: pointer;
   }
   .card h3 { font-size: 19px; margin-bottom: 2px; }
-  .card .esp { color: #7fb3e8; font-size: 15px; margin-bottom: 8px; }
+  .card .esp { color: #93c5fd; font-size: 15px; margin-bottom: 8px; }
   .badge {
     display: inline-block; background: #3a2f00; color: #ffd75e; border-radius: 6px;
     font-size: 11px; font-weight: 700; padding: 2px 7px; margin-left: 6px; vertical-align: middle;
   }
-  .badge.prem { background: #f5b301; color: #1a1a1a; }
+  .badge.prem { background: #F59E0B; color: #0F172A; }
   .badge.red { background: #d92b2b; color: #fff; }
-  .meta { font-size: 15px; color: #c6d4e2; line-height: 1.55; }
-  .stars { color: #f5b301; font-size: 16px; letter-spacing: 1px; }
+  .meta { font-size: 15px; color: #cbd5e1; line-height: 1.55; }
+  .stars { color: #F59E0B; font-size: 16px; letter-spacing: 1px; }
   .open { color: #8fce9b; font-weight: 700; }
   .actions { display: flex; gap: 10px; margin-top: 12px; }
   .actions a, .actions button {
     flex: 1; min-height: 54px; border-radius: 12px; display: flex; align-items: center; justify-content: center;
-    font-size: 17px; font-weight: 700; text-decoration: none; cursor: pointer; border: none;
+    font-size: 17px; font-weight: 700; text-decoration: none; cursor: pointer; border: none; font-family: inherit;
   }
   .call { background: #2e7d32; color: #fff; }
   .wa { background: #1faa55; color: #fff; }
   .foto-btn {
-    display: block; width: 100%; min-height: 56px; border: 2px dashed #2b4a68; border-radius: 12px;
-    background: transparent; color: #cfe0ef; font-size: 16px; cursor: pointer; margin-top: 6px;
+    display: block; width: 100%; min-height: 56px; border: 2px dashed #334155; border-radius: 12px;
+    background: transparent; color: #e2e8f0; font-size: 16px; cursor: pointer; margin-top: 6px; font-family: inherit;
   }
   .ok-big { font-size: 64px; text-align: center; margin: 18px 0 6px; }
   .center { text-align: center; }
   .seguro-card {
-    background: #12263f; border: 2px solid #f5b301; border-radius: 14px;
+    background: #152036; border: 2px solid #F59E0B; border-radius: 14px;
     padding: 14px; margin-top: 16px; text-align: left;
   }
   .seguro-card b { color: #ffd75e; }
-  .review { border-top: 1px solid #243850; padding: 10px 0; font-size: 15px; line-height: 1.45; color: #c6d4e2; }
+  .review { border-top: 1px solid #334155; padding: 10px 0; font-size: 15px; line-height: 1.45; color: #cbd5e1; }
   .review b { color: #fff; }
   .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
   .bell {
-    position: relative; background: #1c3a5c; border: none; border-radius: 12px;
-    width: 48px; height: 48px; font-size: 22px; cursor: pointer; color: #fff;
+    position: relative; background: rgba(30,41,59,.9); border: 1px solid #334155; border-radius: 16px;
+    width: 40px; height: 40px; cursor: pointer; color: #f1f5f9; flex: none;
+    display: flex; align-items: center; justify-content: center;
   }
+  .bell svg { width: 20px; height: 20px; }
   .bell .dot {
-    position: absolute; top: -4px; right: -4px; background: #d92b2b; color: #fff;
-    font-size: 12px; font-weight: 800; min-width: 22px; height: 22px; border-radius: 11px;
+    position: absolute; top: -4px; right: -4px; background: #F59E0B; color: #0F172A;
+    font-size: 11px; font-weight: 800; min-width: 20px; height: 20px; border-radius: 10px;
     display: flex; align-items: center; justify-content: center; padding: 0 4px;
+    border: 2px solid #0F172A;
   }
   .seg { display: flex; gap: 8px; margin: 10px 0; }
   .seg button {
-    flex: 1; min-height: 52px; border-radius: 12px; border: 2px solid #2b4a68;
-    background: transparent; color: #cfe0ef; font-size: 16px; font-weight: 700; cursor: pointer;
+    flex: 1; min-height: 52px; border-radius: 12px; border: 2px solid #334155;
+    background: transparent; color: #e2e8f0; font-size: 16px; font-weight: 700; cursor: pointer; font-family: inherit;
   }
-  .seg button.sel { background: #f5b301; color: #1a1a1a; border-color: #f5b301; }
+  .seg button.sel { background: #F59E0B; color: #0F172A; border-color: #F59E0B; }
   .err { color: #ff8a8a; font-size: 15px; margin-top: 10px; min-height: 20px; text-align: center; }
-  /* Botón 911 fijo */
+  /* Botón 911 fijo (diseño nuevo: rojo translúcido con punto que pulsa;
+     al picarlo pide confirmación antes de marcar, ver #emergModal) */
   .emerg {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
     display: flex; justify-content: center;
     padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-    background: #0b1622;
+    background: #0F172A;
     pointer-events: none;
   }
-  .emerg a {
-    pointer-events: auto; width: 100%; max-width: 448px; min-height: 60px;
-    background: #d92b2b; color: #fff; border-radius: 16px;
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    font-size: 19px; font-weight: 800; text-decoration: none;
-    box-shadow: 0 4px 14px rgba(217,43,43,.5);
+  .emerg button {
+    pointer-events: auto; width: 100%; max-width: 448px; min-height: 56px;
+    background: rgba(127,29,29,.55); color: #fecaca; border: 1px solid rgba(239,68,68,.35); border-radius: 16px;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
+    box-shadow: 0 0 15px -3px rgba(239,68,68,.25);
   }
-  .emerg a:active { background: #b32424; }
+  .emerg button:active { background: rgba(127,29,29,.75); }
+  .emerg .dot-pulse { position: relative; display: flex; width: 10px; height: 10px; flex: none; }
+  .emerg .dot-pulse::before { content: ''; position: absolute; inset: 0; border-radius: 9999px; background: #f87171; animation: ping 1.5s cubic-bezier(0,0,.2,1) infinite; }
+  .emerg .dot-pulse::after { content: ''; position: relative; width: 10px; height: 10px; border-radius: 9999px; background: #ef4444; }
+  @keyframes ping { 0% { transform: scale(1); opacity: .75; } 75%, 100% { transform: scale(2); opacity: 0; } }
+  .emerg .emerg-sep { color: rgba(254,202,202,.5); }
+  .emerg .emerg-911 { color: #fff; font-weight: 600; }
+  .emerg button svg { width: 14px; height: 14px; color: #f87171; flex: none; }
   .toast {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: 92px; z-index: 60;
     background: #1faa55; color: #fff; font-size: 16px; font-weight: 700;
@@ -150,17 +189,17 @@
   }
   /* Fondo con foto (inspiración: SafeCar; la foto es original de TallerYa) */
   .hero {
-    background-image: linear-gradient(rgba(11,22,34,.80), rgba(11,22,34,.87)), url('/hero-taller.jpg');
+    background-image: linear-gradient(rgba(15,23,42,.80), rgba(15,23,42,.87)), url('/hero-taller.jpg');
     background-size: cover; background-position: center 35%;
     border-radius: 20px; padding: 18px 14px 22px;
     box-shadow: 0 8px 24px rgba(0,0,0,.35);
   }
   /* Tarjetas y botones con más aire y sombra suave */
-  .card { box-shadow: 0 6px 18px rgba(0,0,0,.35); border-radius: 18px; }
+  .card { box-shadow: 0 6px 18px rgba(0,0,0,.35); border-radius: 16px; }
   button.big { box-shadow: 0 4px 14px rgba(0,0,0,.35); }
   /* Recogida de la grúa: un solo botón de ubicación (el de arriba);
      escribir la dirección a mano es solo un enlace discreto. */
-  #btnOrigenManual { background: none; border: none; color: #f5b301; font-size: 14px; font-weight: 700; padding: 4px 0 0; cursor: pointer; text-align: left; }
+  #btnOrigenManual { background: none; border: none; color: #F59E0B; font-size: 14px; font-weight: 700; padding: 4px 0 0; cursor: pointer; text-align: left; font-family: inherit; }
   #dRecogida:disabled { color: #c8d3de; opacity: 1; }
   /* Carrusel del inicio: 3 imágenes que cambian solas, con frase */
   .carrusel { margin-top: 18px; overflow: hidden; border-radius: 16px; }
@@ -171,22 +210,22 @@
     position: absolute; left: 0; right: 0; bottom: 0;
     padding: 28px 14px 10px;
     background: linear-gradient(transparent, rgba(0,0,0,.78));
-    color: #f5b301; font-weight: 800; font-size: 19px;
+    color: #F59E0B; font-weight: 800; font-size: 19px;
     text-shadow: 0 1px 3px rgba(0,0,0,.6);
   }
   .carrusel-puntos { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
   .carrusel-puntos button { width: 8px; height: 8px; border-radius: 50%; border: 0; padding: 0; background: rgba(255,255,255,.35); cursor: pointer; }
-  .carrusel-puntos button.sel { background: #f5b301; }
+  .carrusel-puntos button.sel { background: #F59E0B; }
   /* Mapa de resultados (Leaflet + OpenStreetMap, gratis y sin llave) */
-  #mapaResultados { height: 280px; border-radius: 16px; border: 1px solid #243850; margin-top: 12px; position: relative; z-index: 1; }
+  #mapaResultados { height: 280px; border-radius: 16px; border: 1px solid #334155; margin-top: 12px; position: relative; z-index: 1; }
   .pin-taller {
-    width: 26px; height: 26px; background: #f5b301; border: 2px solid #1a1a1a;
+    width: 26px; height: 26px; background: #F59E0B; border: 2px solid #0F172A;
     border-radius: 50% 50% 50% 0; transform: rotate(-45deg);
     box-shadow: 0 2px 8px rgba(0,0,0,.5);
   }
   .pin-taller::after {
     content: ''; position: absolute; left: 7px; top: 7px; width: 8px; height: 8px;
-    background: #1a1a1a; border-radius: 50%;
+    background: #0F172A; border-radius: 50%;
   }
   .pin-yo {
     width: 18px; height: 18px; background: #2f8cff; border: 3px solid #fff;
@@ -196,9 +235,49 @@
   .leaflet-popup-content { font-family: inherit; font-size: 15px; line-height: 1.4; margin: 12px 14px; }
   .leaflet-popup-content button.mini-btn {
     margin-top: 8px; min-height: 44px; padding: 0 16px; border: none; border-radius: 10px;
-    background: #f5b301; color: #1a1a1a; font-size: 15px; font-weight: 800; cursor: pointer;
+    background: #F59E0B; color: #0F172A; font-size: 15px; font-weight: 800; cursor: pointer; font-family: inherit;
   }
   .leaflet-container { font-family: inherit; }
+  /* Pill de ubicación (diseño nuevo): muestra la dirección REAL del GPS,
+     nunca una de ejemplo. Picarla vuelve a detectar tu ubicación. */
+  .loc-pill {
+    width: 100%; display: flex; align-items: center; gap: 10px; text-align: left;
+    background: rgba(30,41,59,.6); border: 1px solid #334155; border-radius: 16px;
+    padding: 10px 14px; cursor: pointer; color: #f1f5f9; font-family: inherit;
+  }
+  .loc-pill:active { background: #1E293B; }
+  .loc-pill-ico { width: 28px; height: 28px; border-radius: 12px; flex: none; background: rgba(245,158,11,.15); color: #F59E0B; display: flex; align-items: center; justify-content: center; }
+  .loc-pill-ico svg { width: 16px; height: 16px; }
+  .loc-pill-txt { flex: 1; min-width: 0; }
+  .loc-pill-label { display: block; font-size: 10px; font-weight: 600; letter-spacing: .5px; text-transform: uppercase; color: #94a3b8; }
+  .loc-pill-addr { display: block; font-size: 13px; font-weight: 500; color: #f1f5f9; line-height: 1.35; }
+  .loc-pill-change { flex: none; display: flex; align-items: center; gap: 2px; font-size: 12px; font-weight: 600; color: #F59E0B; }
+  .loc-pill-change svg { width: 14px; height: 14px; }
+  /* Pantallas de modos como hoja inferior (diseño nuevo): mismo fondo y
+     esquinas del drawer, sin cambiar la lógica (siguen siendo pantallas). */
+  .sheet-handle { width: 40px; height: 6px; border-radius: 9999px; background: #475569; margin: 2px auto 16px; }
+  .screen.sheet { background: #152036; border: 1px solid #334155; border-radius: 32px 32px 16px 16px; padding: 14px 16px 20px; margin-top: 8px; }
+  /* Confirmación del 911 (diseño nuevo) */
+  .modal-backdrop {
+    position: fixed; inset: 0; z-index: 70; background: rgba(2,6,23,.8);
+    display: flex; align-items: center; justify-content: center; padding: 20px;
+  }
+  .modal-card {
+    width: 100%; max-width: 340px; background: #152036; border: 1px solid rgba(239,68,68,.4);
+    border-radius: 24px; padding: 20px; text-align: center;
+    box-shadow: 0 20px 50px rgba(0,0,0,.5);
+  }
+  .modal-card h3 { font-size: 18px; margin: 12px 0 6px; }
+  .modal-card p { color: #cbd5e1; font-size: 13px; line-height: 1.5; margin-bottom: 20px; }
+  .modal-ico { width: 48px; height: 48px; margin: 0 auto; border-radius: 16px; background: rgba(239,68,68,.2); border: 1px solid rgba(239,68,68,.3); color: #f87171; display: flex; align-items: center; justify-content: center; }
+  .modal-ico svg { width: 24px; height: 24px; }
+  .modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions .ghost { margin-top: 0; }
+  .btn-911 {
+    min-height: 52px; border-radius: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: #dc2626; color: #fff; font-size: 13px; font-weight: 700; text-decoration: none; font-family: inherit;
+  }
+  .btn-911:active { background: #b91c1c; }
 </style>
 </head>
 <body>
@@ -272,7 +351,7 @@
   <section id="p-home" class="screen hero">
     <div class="topbar">
       <div class="logo"><img src="/logo.png" alt="TallerYa">Taller<span>Ya</span></div>
-      <button class="bell" id="bellBtn" onclick="openNotifs()" title="Avisos">🔔<span class="dot" id="bellDot" style="display:none;">0</span></button>
+      <button class="bell" id="bellBtn" onclick="openNotifs()" title="Avisos" type="button"><i data-lucide="bell"></i><span class="dot" id="bellDot" style="display:none;">0</span></button>
     </div>
     <p class="tag">Ayuda para tu carro, sin vueltas.</p>
     <h1>¿Qué le pasó a tu carro?</h1>
@@ -286,6 +365,13 @@
       </div>
       <div class="carrusel-puntos" id="carruselPuntos"></div>
     </div>
+    <!-- Pill de ubicación (diseño nuevo): muestra la dirección REAL del
+         GPS; picarla vuelve a detectar tu ubicación. -->
+    <button class="loc-pill" id="locPillHome" type="button" onclick="useLocation()">
+      <span class="loc-pill-ico"><i data-lucide="map-pin"></i></span>
+      <span class="loc-pill-txt"><span class="loc-pill-label">Tu ubicación</span><span class="loc-pill-addr" id="locPillAddr">Pica para detectar tu ubicación</span></span>
+      <span class="loc-pill-change">Cambiar <i data-lucide="chevron-right"></i></span>
+    </button>
     <div class="links">
       <button class="link" onclick="openDriverProfile()">Mis datos y mi seguro</button>
       <button class="link" id="panelLink" onclick="openPanel()">Mi panel de taller</button>
@@ -296,7 +382,8 @@
   </section>
 
   <!-- ============ PANTALLA: ¿CÓMO QUIERES LA AYUDA? (solo Choqué) ============ -->
-  <section id="p-choque-modo" class="screen">
+  <section id="p-choque-modo" class="screen sheet">
+    <div class="sheet-handle"></div>
     <button class="back" onclick="show('p-home')">← Volver</button>
     <h2>Choqué — ¿cómo quieres la ayuda?</h2>
     <p class="calm">Pica lo que necesitas y te buscamos el taller.</p>
@@ -304,7 +391,8 @@
   </section>
 
   <!-- ============ PANTALLA: ¿CÓMO QUIERES LA AYUDA? (solo No arranca) ============ -->
-  <section id="p-mecanico-modo" class="screen">
+  <section id="p-mecanico-modo" class="screen sheet">
+    <div class="sheet-handle"></div>
     <button class="back" onclick="show('p-home')">← Volver</button>
     <h2>No arranca — ¿cómo quieres la ayuda?</h2>
     <p class="calm">Pica lo que necesitas y te buscamos el taller.</p>
@@ -312,7 +400,8 @@
   </section>
 
   <!-- ============ PANTALLA: ¿CÓMO QUIERES LA AYUDA? (solo Llantera) ============ -->
-  <section id="p-llantera-modo" class="screen">
+  <section id="p-llantera-modo" class="screen sheet">
+    <div class="sheet-handle"></div>
     <button class="back" onclick="show('p-home')">← Volver</button>
     <h2>Llantera — ¿cómo quieres la ayuda?</h2>
     <p class="calm">Pica lo que necesitas y te buscamos la llantera.</p>
@@ -325,8 +414,14 @@
     <h2 id="datosTitle">¿Dónde estás?</h2>
     <p class="calm" id="datosNote">Solo ocupamos esto para buscarte el taller más cercano.</p>
     <div id="locBox">
-      <button class="big" onclick="useLocation()">📍 Usar mi ubicación</button>
-      <p class="muted" id="locLine" style="margin-top:10px;">Todavía no tenemos tu ubicación.</p>
+      <!-- Pill de ubicación (diseño nuevo): el botón entero es la ubicación;
+           picarlo vuelve a detectar. #locLine sigue siendo el texto que
+           mostrarDireccionActual() llena con la dirección real. -->
+      <button class="loc-pill" id="btnUseLocation" type="button" onclick="useLocation()">
+        <span class="loc-pill-ico"><i data-lucide="map-pin"></i></span>
+        <span class="loc-pill-txt"><span class="loc-pill-label">Tu ubicación</span><span class="loc-pill-addr" id="locLine">Todavía no tenemos tu ubicación.</span></span>
+        <span class="loc-pill-change">Cambiar <i data-lucide="chevron-right"></i></span>
+      </button>
     </div>
     <div id="gruaBox" style="display:none;">
       <label>¿Dónde se recoge el vehículo?</label>
@@ -580,8 +675,20 @@
   </section>
 </div>
 
-<!-- Botón 911 fijo, siempre visible -->
-<div class="emerg"><a href="tel:911">🚨 EMERGENCIA · Llamar al 911</a></div>
+<!-- Botón 911 fijo, siempre visible: rojo translúcido con punto que
+     pulsa; al picarlo pide confirmación antes de marcar (diseño nuevo). -->
+<div class="emerg"><button id="emerg911Btn" type="button"><span class="dot-pulse"></span><span>Emergencia</span><span class="emerg-sep">·</span><span class="emerg-911">911</span><i data-lucide="phone"></i></button></div>
+<div class="modal-backdrop" id="emergModal" style="display:none;">
+  <div class="modal-card">
+    <div class="modal-ico"><i data-lucide="phone-call"></i></div>
+    <h3>¿Llamar al 911?</h3>
+    <p>Se va a marcar al número de emergencias 911. Úsalo solo si es una emergencia real.</p>
+    <div class="modal-actions">
+      <button class="ghost" id="emergCancelBtn" type="button">Cancelar</button>
+      <a class="btn-911" href="tel:911">Marcar 911</a>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/app.js"></script>
