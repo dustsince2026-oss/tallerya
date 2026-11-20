@@ -131,6 +131,19 @@ test('places: sin GPS la distancia es 0 y no se manda locationBias', async () =>
   assert.deepEqual(out[0].tipos, ['grua']);
 });
 
+test('places: llantera pregunta por llanteras y marca la especialidad', async () => {
+  const fetchImpl = async (url, opts) => {
+    const body = JSON.parse(opts.body);
+    assert.equal(body.textQuery, 'llantera en Ensenada');
+    return okJson({ places: [fakePlace({ displayName: { text: 'Llantera El Gallo' } })] });
+  };
+  const out = await searchPlaces({ tipo: 'llantera', lat: null, lng: null, key: FAKE_KEY, fetchImpl });
+  assert.equal(out.length, 1);
+  assert.equal(out[0].nombre, 'Llantera El Gallo');
+  assert.equal(out[0].esp, 'Llantera');
+  assert.deepEqual(out[0].tipos, ['llantera']);
+});
+
 test('places: lugar sin teléfono ni calificación no rompe el mapeo', async () => {
   const fetchImpl = async () => okJson({ places: [{
     id: 'ChIJ333',
