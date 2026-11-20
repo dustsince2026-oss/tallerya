@@ -10,13 +10,14 @@
 //
 // 2) Supabase (producción en Vercel): pon SUPABASE_URL y
 //    SUPABASE_SERVICE_ROLE_KEY en las variables de entorno de Vercel y
-//    crea las tablas con sql/schema.sql y los datos de ejemplo con
-//    sql/seed.sql. Ahí sí los datos se comparten y persisten.
+//    crea las tablas con sql/schema.sql. Los talleres de Google ya NO
+//    salen de la tabla google_shops (quedó vacía tras
+//    sql/quitar-talleres-ejemplo.sql): vienen reales de Google Places
+//    (api/_lib/places.js, llave GOOGLE_PLACES_API_KEY).
 //    Las fotos van al bucket "fotos".
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { SEED_SHOPS } = require('./seed');
 
 const DATA_DIR = process.env.TALLERYA_DATA_DIR || path.join(__dirname, '..', '..', 'data');
 const DB_FILE = path.join(DATA_DIR, 'db.json');
@@ -45,12 +46,6 @@ function saveDb(db) {
 }
 function nextId(db, kind) { const id = db.seq[kind]; db.seq[kind] += 1; return id; }
 function now() { return new Date().toISOString(); }
-function seedGoogleShops(db) {
-  if (db.googleShops.length) return;
-  for (const s of SEED_SHOPS.filter(x => !x.enApp)) {
-    db.googleShops.push({ id: nextId(db, 'googleShop'), createdAt: now(), ...s });
-  }
-}
 
 const fileStore = {
   kind: 'file',
@@ -200,11 +195,13 @@ const fileStore = {
     };
   },
 
-  // ---- Listados de Google (semilla, no editables por usuarios) ----
+  // ---- Listados de Google (LEGADO, ya no se usa) ----
+  // Antes aquí se sembraban 3 talleres de ejemplo. Desde la integración
+  // con Google Places (api/_lib/places.js) los talleres de Google son
+  // reales y vienen de la API, no de esta tabla. Se deja el método para
+  // no romper la interfaz del adaptador; siempre devuelve lista vacía.
   async listGoogleShops() {
-    const db = loadDb();
-    seedGoogleShops(db); saveDb(db);
-    return db.googleShops.slice().sort((a, b) => a.id - b.id);
+    return [];
   },
 
   // ---- Fotos (opcionales, adjuntas a una solicitud) ----
@@ -437,6 +434,10 @@ const supabaseStore = {
     };
   },
 
+  // ---- Listados de Google (LEGADO, ya no se usa) ----
+  // La tabla google_shops quedó vacía tras sql/quitar-talleres-ejemplo.sql.
+  // Los talleres de Google ahora son reales y vienen de Google Places
+  // (api/_lib/places.js). Se deja el método para no romper la interfaz.
   async listGoogleShops() {
     const { data } = await supabase().from('google_shops').select().order('id');
     return (data || []).map(r => ({
