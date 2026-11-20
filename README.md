@@ -191,7 +191,9 @@ primero) → aviso → panel con 1 solicitud, 1 no leída, stats con 1 aviso
 ### 4. Verificación después del deploy
 1. Abrir la URL → debe verse la pantalla de registro.
 2. Registrar un conductor de prueba → guardar 1 carro → buscar
-   “Choqué” → deben salir los 3 talleres de Google de ejemplo.
+   “Choqué” → sale solo Hojalatería Los Pinos (el buscador filtra por tipo
+   de incidente: choque = hojalatería; grúa = Grúas Ensenada Express;
+   “No arranca / descompuesto” → los 3 talleres de ejemplo).
 3. Registrar un taller de prueba → **no** debe aparecer en búsquedas
    hasta aprobarlo.
 4. En Supabase (Table Editor → users) poner `approved = true` al
