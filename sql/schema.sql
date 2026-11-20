@@ -44,6 +44,7 @@ create table if not exists workshops (
   horario text not null default '',
   direccion text not null default '',
   servicios text not null default '',
+  costo_visita numeric,
   lat numeric,
   lng numeric,
   dist_km numeric not null default 0,
