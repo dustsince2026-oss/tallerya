@@ -183,6 +183,67 @@ test('choqué y presupuesto son lo mismo: un solo botón, alias en el servidor',
   assert.deepEqual(p.data.shops.map(s => s.id), c.data.shops.map(s => s.id));
 });
 
+test('llantera: botón nuevo en vez de Falla eléctrica', async () => {
+  // 'Falla eléctrica' repetía lo que ya cubre 'No arranca' (mecánico o
+  // eléctrico), así que el botón ahora es 'Llantera'. Lo eléctrico sigue
+  // existiendo por dentro (foquito, noarranca).
+  const l = await call('register', {
+    name: 'Llantas', email: 'llantas@taller.mx', password: 'secreto1', role: 'workshop',
+    tallerNombre: 'Llantera El Faro', especialidad: 'Llantera',
+    zona: 'Valle Verde', whatsapp: '646 555 6677', plan: 'Basico',
+    inviteCode: await inviteCode('Llantera El Faro'),
+  });
+  assert.equal(l.status, 201);
+  assert.equal(l.data.user.approved, true);
+  const s = await callQ('search', { incident: 'llantera' });
+  assert.equal(s.data.resTitle, 'Llanteras cerca de ti');
+  assert.ok(s.data.shops.some(x => x.nombre === 'Llantera El Faro'));
+  assert.ok(s.data.shops.every(x => x.tipos.includes('llantera')));
+});
+
+test('costo por la visita: el taller pone su precio y sale en la búsqueda', async () => {
+  // El costo aplica a los dos presupuestos fuera del taller (en el lugar
+  // del percance y a domicilio); lo pone cada taller en su panel y cubre
+  // servicio, tiempo y traslado. Llevar el carro al taller no lleva costo.
+  const r = await call('register', {
+    name: 'Faro2', email: 'faro2@taller.mx', password: 'secreto1', role: 'workshop',
+    tallerNombre: 'Hojalatería El Faro 2', especialidad: 'Carrocería/hojalatería y pintura',
+    zona: 'Valle Verde', whatsapp: '646 111 2233', plan: 'Basico',
+    inviteCode: await inviteCode('Faro 2'),
+  });
+  assert.equal(r.status, 201);
+  const tok = r.data.token;
+  const saved = await call('update-workshop-profile', { costoVisita: 300 }, tok);
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.taller.costoVisita, 300);
+  const s = await callQ('search', { incident: 'choque' });
+  const shop = s.data.shops.find(x => x.nombre === 'Hojalatería El Faro 2');
+  assert.ok(shop);
+  assert.equal(shop.costoVisita, 300);
+  // Vacío = a convenir (null).
+  await call('update-workshop-profile', { costoVisita: '' }, tok);
+  const s2 = await callQ('search', { incident: 'choque' });
+  assert.equal(s2.data.shops.find(x => x.nombre === 'Hojalatería El Faro 2').costoVisita, null);
+  // Pausar el taller de prueba para no contaminar los tests que siguen.
+  await call('set-paused', { pausado: true }, tok);
+});
+
+test('la búsqueda trae las coordenadas del taller cuando las tiene (para el mapa)', async () => {
+  // El taller guarda su ubicación en su panel; sin coordenadas no hay
+  // pin en el mapa. El servidor nunca inventa coordenadas.
+  const antes = await callQ('search', { incident: 'choque' });
+  const faroAntes = antes.data.shops.find(s => s.nombre === 'Hojalatería y Pintura El Faro');
+  assert.ok(faroAntes, 'el taller aparece');
+  assert.equal(faroAntes.lat, null);
+  assert.equal(faroAntes.lng, null);
+  await call('update-workshop-profile', { lat: 31.8641, lng: -116.6131 }, workshopToken);
+  const s = await callQ('search', { incident: 'choque' });
+  const faro = s.data.shops.find(x => x.nombre === 'Hojalatería y Pintura El Faro');
+  assert.ok(faro);
+  assert.equal(faro.lat, 31.8641);
+  assert.equal(faro.lng, -116.6131);
+});
+
 test('avisar al taller: crea solicitud + notificación + link de WhatsApp', async () => {
   const d = await call('notify', {
     workshopId, incident: 'choque', descripcion: 'Me pegaron en la defensa',
