@@ -1,0 +1,232 @@
+'use strict';
+// Flujo completo contra el adaptador de archivo local (sin Supabase).
+// IMPORTANTE: las variables de entorno van ANTES del require: store.js
+// lee TALLERYA_DATA_DIR al cargarse.
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const test = require('node:test');
+const assert = require('node:assert/strict');
+
+const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'tallerya-test-'));
+process.env.TALLERYA_DATA_DIR = TMP;
+process.env.AUTH_SECRET = 'test-secret-tallerya';
+process.env.OWNER_EMAIL = 'dueno@tallerya.mx';
+
+const { dispatch } = require('../api/_lib/handlers');
+
+const PNG_1PX = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+
+async function call(route, body, token) {
+  try {
+    return await dispatch(route, { body: body || {}, query: {}, token: token || null });
+  } catch (e) {
+    e._status = e.status;
+    throw e;
+  }
+}
+async function callQ(route, query, token) {
+  return dispatch(route, { body: {}, query: query || {}, token: token || null });
+}
+async function expectErr(promise, status) {
+  try {
+    await promise;
+  } catch (e) {
+    assert.equal(e.status, status, 'esperaba error ' + status + ', llegó ' + e.status + ': ' + e.message);
+    return e;
+  }
+  assert.fail('esperaba error ' + status + ' y no falló');
+}
+
+let driverToken, driverId, workshopToken, workshopUserId, workshopId, ownerToken;
+
+test('registro de conductor + login + duplicados', async () => {
+  const r = await call('register', { name: 'Daniel', email: 'daniel@ejemplo.mx', password: 'secreto1', role: 'driver', phone: '646 111 2222' });
+  assert.equal(r.status, 201);
+  assert.equal(r.data.user.role, 'driver');
+  assert.ok(r.data.token);
+  driverToken = r.data.token; driverId = r.data.user.id;
+
+  await expectErr(call('register', { name: 'Otro', email: 'daniel@ejemplo.mx', password: 'secreto1' }), 400);
+  await expectErr(call('register', { name: 'X', email: 'mal-correo', password: 'secreto1' }), 400);
+  await expectErr(call('register', { name: 'X', email: 'x@ejemplo.mx', password: '123' }), 400);
+
+  const bad = await expectErr(call('login', { email: 'daniel@ejemplo.mx', password: 'mal' }), 401);
+  assert.match(bad.message, /incorrectos/);
+  const ok = await call('login', { email: 'daniel@ejemplo.mx', password: 'secreto1' });
+  assert.equal(ok.status, 200);
+  assert.equal(ok.data.user.id, driverId);
+});
+
+test('perfil del conductor: máximo 3 carros', async () => {
+  const cuatro = [
+    { marca: 'Nissan', modelo: 'Versa', anio: '2019', color: 'Blanco' },
+    { marca: 'Toyota', modelo: 'Corolla', anio: '2021', color: 'Gris' },
+    { marca: 'Honda', modelo: 'Civic', anio: '2018', color: 'Rojo' },
+    { marca: 'Kia', modelo: 'Rio', anio: '2020', color: 'Azul' },
+  ];
+  await expectErr(call('save-driver-profile', { carros: cuatro }, driverToken), 400);
+  await expectErr(call('save-driver-profile', { carros: [{ modelo: 'Versa' }] }, driverToken), 400);
+  const tres = cuatro.slice(0, 3);
+  const saved = await call('save-driver-profile', {
+    carros: tres, tieneSeguro: true, aseguradora: 'Quálitas', poliza: 'Q123', telAseg: '800 800 8000',
+  }, driverToken);
+  assert.equal(saved.data.profile.carros.length, 3);
+  assert.equal(saved.data.profile.poliza, 'Q123');
+  const got = await call('get-driver-profile', {}, driverToken);
+  assert.equal(got.data.profile.carros[0].marca, 'Nissan');
+  await expectErr(call('get-driver-profile', {}), 401);
+});
+
+test('registro de taller: pendiente hasta que el dueño lo aprueba', async () => {
+  const r = await call('register', {
+    name: 'El Faro', email: 'faro@taller.mx', password: 'secreto1', role: 'workshop',
+    phone: '646 111 2233', tallerNombre: 'Hojalatería y Pintura El Faro',
+    especialidad: 'Hojalatería y pintura', zona: 'Valle Verde, Ensenada',
+    whatsapp: '646 111 2233', tieneGrua: false, aDomicilio: true, plan: 'Destacado',
+  });
+  assert.equal(r.status, 201);
+  assert.equal(r.data.user.approved, false, 'el taller nuevo NO está aprobado');
+  workshopToken = r.data.token; workshopUserId = r.data.user.id; workshopId = r.data.workshop.id;
+
+  // Sin aprobar: NO aparece en los resultados (solo el de Google).
+  const s = await callQ('search', { incident: 'choque' });
+  assert.ok(s.data.shops.length >= 1);
+  assert.ok(s.data.shops.every(x => x.source === 'google'), 'sin aprobar solo sale Google');
+  assert.equal(s.data.shops[0].nombre, 'Hojalatería Los Pinos');
+
+  // El dueño lo aprueba (el correo del dueño es OWNER_EMAIL).
+  const o = await call('register', { name: 'Orlan', email: 'dueno@tallerya.mx', password: 'secreto1', role: 'driver' });
+  ownerToken = o.data.token;
+  assert.equal(o.data.user.isOwner, true);
+  const ap = await call('approve-workshop', { userId: workshopUserId, aprobado: true }, ownerToken);
+  assert.equal(ap.data.user.approved, true);
+
+  // Aprobado: el taller con la app sale PRIMERO, antes que Google.
+  const s2 = await callQ('search', { incident: 'choque' });
+  assert.equal(s2.data.shops[0].source, 'app');
+  assert.equal(s2.data.shops[0].nombre, 'Hojalatería y Pintura El Faro');
+  assert.equal(s2.data.appCount, 1);
+
+  // Un conductor no puede aprobar talleres.
+  await expectErr(call('approve-workshop', { userId: workshopUserId, aprobado: false }, driverToken), 403);
+});
+
+test('búsqueda por incidente: grúa habla de grúas, noarranca acepta eléctrico', async () => {
+  const g = await callQ('search', { incident: 'grua' });
+  assert.equal(g.data.resTitle, 'Grúas cerca de ti');
+  assert.ok(g.data.shops.every(s => s.tipos.includes('grua')));
+
+  // Registrar un eléctrico aprobado para probar el filtro noarranca.
+  const e = await call('register', {
+    name: 'Volt', email: 'volt@taller.mx', password: 'secreto1', role: 'workshop',
+    tallerNombre: 'Eléctrico Automotriz Volt', especialidad: 'Eléctrico automotriz',
+    zona: 'Valle Verde', whatsapp: '646 444 5566', plan: 'Destacado',
+  });
+  await call('approve-workshop', { userId: e.data.user.id, aprobado: true }, ownerToken);
+  const n = await callQ('search', { incident: 'noarranca' });
+  assert.ok(n.data.shops.some(s => s.nombre === 'Eléctrico Automotriz Volt'), 'noarranca incluye eléctricos');
+  assert.ok(n.data.shops.every(s => s.tipos.includes('mecanico') || s.tipos.includes('electrico')));
+});
+
+test('avisar al taller: crea solicitud + notificación + link de WhatsApp', async () => {
+  const d = await call('notify', {
+    workshopId, incident: 'choque', descripcion: 'Me pegaron en la defensa',
+    carro: { marca: 'Nissan', modelo: 'Versa', anio: '2019', color: 'Blanco' },
+  }, driverToken);
+  assert.equal(d.status, 201);
+  assert.equal(d.data.taller, 'Hojalatería y Pintura El Faro');
+  assert.ok(d.data.whatsappUrl.startsWith('https://wa.me/526461112233?text='));
+  assert.match(decodeURIComponent(d.data.whatsappUrl), /defensa/);
+
+  // El taller lo ve en su panel y en su campanita.
+  const panel = await call('get-panel', {}, workshopToken);
+  assert.equal(panel.data.solicitudes.length, 1);
+  assert.equal(panel.data.solicitudes[0].incidentLabel, 'Choqué');
+  assert.equal(panel.data.solicitudes[0].driverName, 'Daniel');
+  assert.equal(panel.data.solicitudes[0].carro.marca, 'Nissan');
+  assert.equal(panel.data.unread, 1);
+  const notifs = await call('list-notifications', {}, workshopToken);
+  assert.match(notifs.data.notificaciones[0].titulo, /Nueva solicitud/);
+  const read = await call('mark-notifications-read', {}, workshopToken);
+  assert.equal(read.data.leidas, 1);
+
+  // Avisar a un taller de Google no existe como taller con app → 404.
+  await expectErr(call('notify', { workshopId: 99999, incident: 'choque' }, driverToken), 404);
+  // Sin sesión no se puede avisar.
+  await expectErr(call('notify', { workshopId, incident: 'choque' }), 401);
+});
+
+test('panel del taller: servicios, ofertas, perfil y pausa', async () => {
+  const s = await call('set-services', { servicios: [
+    { nombre: 'Hojalatería', precio: 'Desde $1,500' },
+    { nombre: 'Pintura', precio: 'Desde $2,000' },
+  ] }, workshopToken);
+  assert.equal(s.data.servicios.length, 2);
+
+  const o = await call('create-offer', { titulo: 'Pintura de defensa', precio: '$2,500', vigencia: 'Hasta el sábado' }, workshopToken);
+  assert.equal(o.status, 201);
+  const off = await call('set-offer-active', { offerId: o.data.oferta.id, activa: false }, workshopToken);
+  assert.equal(off.data.oferta.activa, false);
+
+  const p = await call('update-workshop-profile', { horario: '8:00 – 18:00', direccion: 'Calle Reforma 1234' }, workshopToken);
+  assert.equal(p.data.taller.horario, '8:00 – 18:00');
+
+  const stats = await call('get-panel', {}, workshopToken);
+  assert.equal(stats.data.stats.avisos7d, 1, 'un aviso esta semana');
+
+  // Pausar: el taller desaparece de los resultados.
+  await call('set-paused', { pausado: true }, workshopToken);
+  const s2 = await callQ('search', { incident: 'choque' });
+  assert.ok(s2.data.shops.every(x => x.source === 'google'), 'pausado no aparece');
+  await call('set-paused', { pausado: false }, workshopToken);
+  const s3 = await callQ('search', { incident: 'choque' });
+  assert.equal(s3.data.shops[0].source, 'app', 'al volver aparece otra vez');
+
+  // Un conductor no puede tocar el panel de un taller.
+  await expectErr(call('get-panel', {}, driverToken), 403);
+});
+
+test('foto adjunta: solo la ven el conductor y el taller', async () => {
+  const d = await call('notify', {
+    workshopId, incident: 'otro', descripcion: 'Ruido raro',
+    carro: { marca: 'Nissan', modelo: 'Versa', anio: '2019', color: 'Blanco' },
+    fotoBase64: PNG_1PX,
+  }, driverToken);
+  assert.equal(d.status, 201);
+  const panel = await call('get-panel', {}, workshopToken);
+  const req = panel.data.solicitudes.find(x => x.descripcion === 'Ruido raro');
+  assert.ok(req && req.fotoKey, 'la solicitud guarda la foto');
+
+  // El conductor la puede ver (es suya).
+  const fotoDriver = await dispatch('foto-file', { body: {}, query: { key: req.fotoKey }, token: driverToken });
+  assert.equal(fotoDriver.status, 200);
+  assert.ok(fotoDriver.file.bytes.length > 0);
+  // El taller también.
+  const fotoTaller = await dispatch('foto-file', { body: {}, query: { key: req.fotoKey }, token: workshopToken });
+  assert.equal(fotoTaller.status, 200);
+  // Un tercero no.
+  const otro = await call('register', { name: 'Extraño', email: 'extrano@ejemplo.mx', password: 'secreto1', role: 'driver' });
+  await expectErr(dispatch('foto-file', { body: {}, query: { key: req.fotoKey }, token: otro.data.token }), 403);
+  // Foto muy pesada se rechaza.
+  const grande = 'data:image/jpeg;base64,' + Buffer.alloc(3 * 1024 * 1024, 0).toString('base64');
+  await expectErr(call('notify', { workshopId, incident: 'otro', fotoBase64: grande }, driverToken), 400);
+});
+
+test('foquitos: diagnóstico por API', async () => {
+  const d = await call('diagnostico-focos', { focos: ['aceite', 'bateria'] });
+  assert.equal(d.data.focos.length, 2);
+  assert.deepEqual(d.data.especialistas.map(e => e.tipo).sort(), ['electrico', 'mecanico']);
+  const f = await callQ('list-focos', {});
+  assert.equal(f.data.focos.length, 10);
+});
+
+test('stats: vistas y llamadas se cuentan', async () => {
+  await call('track-event', { workshopId, kind: 'vista' });
+  await call('track-event', { workshopId, kind: 'vista' });
+  await call('track-event', { workshopId, kind: 'llamada' });
+  const panel = await call('get-panel', {}, workshopToken);
+  assert.equal(panel.data.stats.vistas7d, 2);
+  assert.equal(panel.data.stats.llamadas7d, 1);
+  await expectErr(call('track-event', { workshopId: 99999, kind: 'vista' }), 404);
+});
