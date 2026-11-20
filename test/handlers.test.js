@@ -83,7 +83,7 @@ async function inviteCode(note) {
   return r.data.codigo.code;
 }
 
-test('registro de taller: solo con código de invitación, entra aprobado', async () => {
+test('registro de taller: sin código queda en espera; con código se activa', async () => {
   // Primero el dueño (el correo del dueño es OWNER_EMAIL).
   const o = await call('register', { name: 'Orlan', email: 'dueno@tallerya.mx', password: 'secreto1', role: 'driver' });
   ownerToken = o.data.token;
@@ -95,18 +95,27 @@ test('registro de taller: solo con código de invitación, entra aprobado', asyn
     especialidad: 'Hojalatería y pintura', zona: 'Valle Verde, Ensenada',
     whatsapp: '646 111 2233', tieneGrua: false, aDomicilio: true, plan: 'Destacado',
   };
-  // Sin código no hay registro de taller.
-  await expectErr(call('register', { ...base }), 400);
-  await expectErr(call('register', { ...base, inviteCode: 'TALLER-ZZZZZZ' }), 400);
+  // Sin código sí se registra, pero queda en espera y NO aparece en
+  // los resultados. Sin llave de Google Places no hay talleres de
+  // Google (ya no hay datos de ejemplo).
+  const r0 = await call('register', { ...base });
+  assert.equal(r0.status, 201);
+  assert.equal(r0.data.user.approved, false, 'sin código queda en espera');
+  workshopToken = r0.data.token; workshopUserId = r0.data.user.id; workshopId = r0.data.workshop.id;
+  const s0 = await callQ('search', { incident: 'choque' });
+  assert.equal(s0.data.shops.length, 0, 'en espera no aparece');
+  assert.equal(s0.data.googleDisponible, false);
 
-  // Con código válido entra aprobado (verificado en persona) y aparece
-  // en los resultados sin ningún paso extra. Sin llave de Google Places
-  // no hay talleres de Google (ya no hay datos de ejemplo).
+  // Con código desconocido no se puede registrar.
+  await expectErr(call('register', { ...base, email: 'otro@taller.mx', inviteCode: 'TALLER-ZZZZZZ' }), 400);
+
+  // Orlan lo visita y le entrega el código: el taller lo mete y se
+  // activa en ese momento, y ya aparece en los resultados.
   const code = await inviteCode('Hojalatería El Faro');
-  const r = await call('register', { ...base, inviteCode: code });
-  assert.equal(r.status, 201);
-  assert.equal(r.data.user.approved, true, 'con código el taller ya está verificado');
-  workshopToken = r.data.token; workshopUserId = r.data.user.id; workshopId = r.data.workshop.id;
+  const act = await call('activate-workshop', { inviteCode: code }, workshopToken);
+  assert.equal(act.status, 200);
+  assert.equal(act.data.user.approved, true, 'con código el taller ya está verificado');
+  assert.equal(act.data.workshop.nombre, 'Hojalatería y Pintura El Faro');
 
   const s2 = await callQ('search', { incident: 'choque' });
   assert.equal(s2.data.shops[0].source, 'app');

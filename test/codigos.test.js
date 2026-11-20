@@ -1,8 +1,10 @@
 'use strict';
 // Códigos de invitación para talleres: solo entran talleres verificados
-// por el dueño en persona. El dueño genera el código, lo entrega en el
-// taller y el taller lo mete al registrarse. Sin código no hay registro
-// de taller. El conductor no necesita código.
+// por el dueño en persona. El taller se registra solo y queda en
+// espera; Orlan genera el código, lo entrega cuando va a verificarlo y
+// el taller lo mete para ACTIVAR su cuenta (o directo al registrarse,
+// si ya lo tiene). Un código sirve una sola vez. El conductor no
+// necesita código.
 // Se prueba contra el adaptador de archivo local (sin Supabase).
 const fs = require('node:fs');
 const os = require('node:os');
@@ -52,18 +54,21 @@ test('el dueño se registra y genera un código', async () => {
   assert.equal(c.data.codigo.usado, false);
 });
 
-test('registro de taller sin código → 400; con código desconocido → 400', async () => {
+test('registro de taller sin código queda en espera; con código desconocido → 400', async () => {
   const base = {
     name: 'El Faro', password: 'secreto1', role: 'workshop',
     tallerNombre: 'Hojalatería y Pintura El Faro', especialidad: 'Hojalatería y pintura',
     zona: 'Valle Verde, Ensenada', whatsapp: '646 111 2233', plan: 'Destacado',
   };
-  const sinCodigo = await expectErr(call('register', { ...base, email: 'faro1@taller.mx' }), 400);
-  assert.match(sinCodigo.message, /código no es válido/);
+  // Sin código sí se puede registrar, pero queda en espera (no aprobado).
+  const sinCodigo = await call('register', { ...base, email: 'faro1@taller.mx' });
+  assert.equal(sinCodigo.status, 201);
+  assert.equal(sinCodigo.data.user.approved, false, 'sin código queda en espera');
   const malo = await expectErr(call('register', { ...base, email: 'faro2@taller.mx', inviteCode: 'TALLER-ZZZZZZ' }), 400);
   assert.match(malo.message, /código no es válido/);
-  const vacio = await expectErr(call('register', { ...base, email: 'faro3@taller.mx', inviteCode: '   ' }), 400);
-  assert.match(vacio.message, /código no es válido/);
+  const vacio = await call('register', { ...base, email: 'faro3@taller.mx', inviteCode: '   ' });
+  assert.equal(vacio.status, 201, 'código vacío es lo mismo que sin código: queda en espera');
+  assert.equal(vacio.data.user.approved, false);
 });
 
 test('con código válido el taller entra aprobado y aparece en búsquedas', async () => {
