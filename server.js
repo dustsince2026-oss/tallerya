@@ -52,6 +52,7 @@ const ROUTES = {
   'workshop-activate': 'activate-workshop',
   'pending-workshops': 'pending-workshops-list',
   'grua-distancia': 'grua-distancia',
+  'reverse-geocode': 'reverse-geocode',
 };
 
 function readBody(req) {
