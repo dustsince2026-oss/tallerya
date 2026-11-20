@@ -54,7 +54,7 @@ async function makeDom(distanciaMode) {
   };
   globalThis.fetch = fetchStub;
   window.fetch = fetchStub;
-  window.eval(appJs + '\n;window.__test = { searchShops, show, notifyShop, setOrigenGrua, setUser: (u) => { user = u; }, setLoc: (la, ln) => { lat = la; lng = ln; } };');
+  window.eval(appJs + '\n;window.__test = { searchShops, show, notifyShop, setOrigenGrua, useLocation, setUser: (u) => { user = u; }, setLoc: (la, ln) => { lat = la; lng = ln; } };');
   await new Promise(r => setTimeout(r, 50));
   wins.push(window);
   return { window, document: window.document, t: window.__test, captured };
@@ -97,6 +97,41 @@ test('con GPS, el cuadro se llena solo con tu dirección actual', async () => {
   const { document: doc, t } = await makeDom('ok');
   t.setLoc(31.8631, -116.5959);
   incBtns(doc)[2].click();
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(doc.getElementById('dRecogida').value, 'Av. Ignacio L. Rayón 273, Independencia, Ensenada');
+  assert.equal(doc.getElementById('dRecogida').disabled, true);
+});
+
+test('al usar mi ubicación aparece la dirección escrita abajo del botón', async () => {
+  const { document: doc, window, t } = await makeDom('ok');
+  Object.defineProperty(window.navigator, 'geolocation', { value: {
+    getCurrentPosition: (ok) => ok({ coords: { latitude: 31.8631, longitude: -116.5959 } }),
+    watchPosition: () => 1,
+  }, configurable: true });
+  incBtns(doc)[2].click();
+  t.useLocation();
+  await new Promise(r => setTimeout(r, 50));
+  const line = doc.getElementById('locLine');
+  assert.ok(line.textContent.includes('Ubicación lista'));
+  assert.ok(line.textContent.includes('Av. Ignacio L. Rayón 273, Independencia, Ensenada'));
+});
+
+test('si borras la recogida y vuelves a picar Usar mi ubicación, la dirección se pone otra vez', async () => {
+  const { document: doc, window, t } = await makeDom('ok');
+  // GPS falso: el botón "Usar mi ubicación" usa la geolocalización del teléfono.
+  Object.defineProperty(window.navigator, 'geolocation', { value: {
+    getCurrentPosition: (ok) => ok({ coords: { latitude: 31.8631, longitude: -116.5959 } }),
+    watchPosition: () => 1,
+  }, configurable: true });
+  t.setLoc(31.8631, -116.5959);
+  incBtns(doc)[2].click();
+  await new Promise(r => setTimeout(r, 50));
+  assert.equal(doc.getElementById('dRecogida').value, 'Av. Ignacio L. Rayón 273, Independencia, Ensenada');
+  // Orlan la borra: pica "Escribir la dirección a mano" y el cuadro se vacía.
+  doc.getElementById('btnOrigenManual').click();
+  assert.equal(doc.getElementById('dRecogida').value, '');
+  // Vuelve a picar "Usar mi ubicación": la dirección debe volver sola.
+  t.useLocation();
   await new Promise(r => setTimeout(r, 50));
   assert.equal(doc.getElementById('dRecogida').value, 'Av. Ignacio L. Rayón 273, Independencia, Ensenada');
   assert.equal(doc.getElementById('dRecogida').disabled, true);
