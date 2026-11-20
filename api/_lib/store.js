@@ -283,6 +283,7 @@ function mapWorkshop(r) {
     zona: r.zona, whatsapp: r.whatsapp, tieneGrua: !!r.tiene_grua, aDomicilio: !!r.a_domicilio,
     plan: r.plan, activo: r.activo !== false, rating: Number(r.rating || 0), opiniones: r.opiniones || 0,
     horario: r.horario, direccion: r.direccion, servicios: r.servicios || '',
+    costoVisita: r.costo_visita == null ? null : Number(r.costo_visita),
     lat: r.lat, lng: r.lng, distKm: Number(r.dist_km || 0), createdAt: r.created_at,
   };
 }
@@ -380,6 +381,7 @@ const supabaseStore = {
     if (patch.horario !== undefined) p.horario = patch.horario;
     if (patch.direccion !== undefined) p.direccion = patch.direccion;
     if (patch.servicios !== undefined) p.servicios = patch.servicios;
+    if (patch.costoVisita !== undefined) p.costo_visita = patch.costoVisita;
     if (patch.lat !== undefined) p.lat = patch.lat;
     if (patch.lng !== undefined) p.lng = patch.lng;
     if (patch.distKm !== undefined) p.dist_km = patch.distKm;
