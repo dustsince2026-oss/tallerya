@@ -90,11 +90,13 @@ test/                      38 pruebas (node:test): auth, orden de
   y le avisaron.
 - **Suscripción:** muestra el plan y botón **Pausar mi anuncio** (mientras
   está pausado no aparece en las búsquedas). **Plan gratis, sin cobro.**
-- **Códigos de invitación:** un taller nuevo solo se puede registrar
-  con un código que el dueño le entregó en persona (ver "Códigos de
-  invitación para talleres" abajo). Con código válido entra aprobado
-  en ese momento. Respaldo: el dueño puede quitarle y devolverle la
-  aprobación con `/api/workshop-approve` (`OWNER_EMAIL`, ver abajo).
+- **Códigos de invitación:** el taller se registra solo y queda en
+  espera; el dueño lo visita en persona, le entrega un código y el
+  taller **activa su cuenta** con ese código (ver "Códigos de
+  invitación para talleres" abajo). Si ya tiene el código, lo puede
+  meter directo al registrarse y entra aprobado en ese momento.
+  Respaldo: el dueño puede quitarle y devolverle la aprobación con
+  `/api/workshop-approve` (`OWNER_EMAIL`, ver abajo).
 
 ### Seguridad y honestidad
 - Contraseñas con `scrypt` + salt; tokens de sesión HMAC con expiración
@@ -145,7 +147,7 @@ reinicio invalida las sesiones). Los datos se guardan en `./data/db.json`
 ## Pruebas
 
 ```bash
-npm test            # 45 pruebas, todas verdes
+npm test            # 51 pruebas, todas verdes
 node --check server.js public/app.js api/_lib/*.js
 ```
 
@@ -153,9 +155,12 @@ Qué cubren: hash/verificación de contraseña y tokens; orden de
 resultados (app primero, plan, rating, distancia, GPS real); los 10
 foquitos y su especialista; el flujo completo con el adaptador de
 archivo: registro driver/taller, perfil con 3 carros (el 4.º se rechaza),
-códigos de invitación (sin código → 400, código usado → 400, con código
-válido entra aprobado y aparece en búsquedas, desactivar, solo el dueño
-crea/lista/desactiva), aprobación por el dueño (respaldo), aviso al
+registro de taller sin código (queda en espera, no aparece en
+búsquedas), activación con código (válido/inválido/ya usado/ya activo,
+solo talleres), lista de talleres en espera (solo el dueño), códigos de
+invitación (con código válido entra aprobado y aparece en búsquedas,
+desactivar, solo el dueño crea/lista/desactiva), el aviso de la visita
+en la pantalla de espera, aprobación por el dueño (respaldo), aviso al
 taller + notificación + WhatsApp, panel (servicios, ofertas, perfil,
 pausa), foto visible solo para conductor y taller, stats; y Google
 Places: mapeo de la respuesta de la API, teléfono a 10 dígitos, cerrado
@@ -225,43 +230,60 @@ crédito se acaba, Google cobra lo que sigue según su lista de precios
 ## Códigos de invitación para talleres
 
 Solo entran talleres **serios y establecidos**, verificados por Orlan
-**en persona** (decisión de Orlan 2026-11-19). Nadie se puede registrar
-como taller solo: el taller necesita un código que Orlan le entrega
-cuando va a verificarlo. El conductor no necesita código.
+**en persona** (decisión de Orlan 2026-11-19). El taller se registra
+solo y queda **en espera** hasta que Orlan va a verificarlo y le
+entrega el código; con el código el taller **activa su cuenta**. El
+conductor no necesita código.
 
 ### Cómo funciona (flujo)
-1. Orlan se registra como **conductor** con su correo
-   (dust.since2026@gmail.com) y queda como dueño.
-2. En el inicio, Orlan pica **"Códigos de invitación"** (solo la ve él),
+1. El taller interesado se registra como **Taller** (nombre del taller,
+   especialidad, zona, WhatsApp, plan). El campo **"Código de
+   invitación" es opcional**: si lo deja vacío, queda **en espera**
+   (no aparece en las búsquedas).
+2. Al registrarse y cada vez que entra a su cuenta mientras siga en
+   espera, el taller ve este aviso en su panel:
+   > "En los próximos días llegará un agente de TallerYa a visitarte
+   > para corroborar la información que nos mostraste y entregarte el
+   > código para que tu registro sea exitoso."
+   Y el campo para meter el código con el botón **"Activar mi taller"**.
+3. Orlan ve los talleres en espera en su pantalla **"Códigos de
+   invitación"** (sección "Talleres en espera": nombre, contacto,
+   correo, teléfono, fecha de registro). Ahí mismo genera el código:
    escribe el nombre del taller (opcional) y pica **"Generar código"**.
    Sale un código grande, formato `TALLER-XXXXXX` (6 caracteres al
    azar, nunca secuencial), con botón **Copiar**.
-3. Orlan va al taller, verifica que existe, habla con el encargado y
+4. Orlan va al taller, verifica que existe, habla con el encargado y
    le entrega el código.
-4. El encargado se registra como **Taller** y mete el código en el
-   campo **"Código de invitación"**. Sin código (o con uno que no
-   existe o ya se usó) el registro da error: "Ese código no es válido."
-5. Con código válido el taller entra **aprobado en ese momento** y ya
-   aparece en las búsquedas, primero que los de Google.
-6. El código sirve **una sola vez**: en la lista de códigos sale como
+5. El encargado mete el código en su panel (**"Activar mi taller"**).
+   Con código válido la cuenta se **activa en ese momento** y ya
+   aparece en las búsquedas, primero que los de Google. Con código que
+   no existe o ya se usó da error: "Ese código no es válido."
+6. **Atajo:** si Orlan ya le dio el código antes de que se registrara,
+   el taller lo mete directo en el registro y entra **aprobado en ese
+   momento**, sin pasar por la espera.
+7. El código sirve **una sola vez**: en la lista de códigos sale como
    "USADO por <nombre> el <fecha>". El dueño puede **desactivar** un
    código sin usar (ya no sirve); uno usado no se puede desactivar.
-7. Respaldo: el endpoint viejo `/api/workshop-approve` sigue
+8. Respaldo: el endpoint viejo `/api/workshop-approve` sigue
    funcionando (el dueño puede quitarle y devolverle la aprobación a
    un taller desde la API).
 
 ### Datos técnicos
-- Tabla nueva `invite_codes` (ver `sql/codigos-invitacion.sql`):
+- Tabla `invite_codes` (ver `sql/codigos-invitacion.sql`):
   `code` único, `note`, `created_by`, `used_by`, `used_at`,
-  `created_at`. **Hay que correr ese SQL en Supabase ANTES del
-  deploy** (lleva sus propios GRANT a `service_role`, igual que
-  `schema.sql` — sin ellos la API da "permission denied").
-- Endpoints nuevos (dueño, `requireOwner`): `POST
+  `created_at`. **Ya existe en Supabase** (se creó en el deploy de
+  códigos 2026-11-19): esta versión **no necesita ningún SQL nuevo**.
+- Endpoints: `POST /api/workshop-activate` (body `{inviteCode}`,
+  el propio taller, con sesión; devuelve el usuario aprobado) y `GET
+  /api/pending-workshops` (dueño, `requireOwner`). Los de códigos
+  siguen igual (dueño, `requireOwner`): `POST
   /api/invite-code-create` (body `{note}`), `GET
   /api/invite-codes-list`, `POST /api/invite-code-deactivate` (body
   `{code}`). El registro de taller (`POST /api/auth-register` con
-  `role: 'workshop'`) exige `inviteCode` y lo marca como usado antes
-  de devolver éxito; si marcarlo falla, el registro falla también.
+  `role: 'workshop'`) acepta `inviteCode` opcional: con código válido
+  lo marca como usado antes de devolver éxito y el taller entra
+  aprobado; sin código entra con `approved=false` y no aparece en
+  las búsquedas (el filtro ya existía en `listApprovedWorkshops`).
 - Sin variables de entorno nuevas. El plan (Básico/Destacado/Premium)
   sigue existiendo igual, sin cambios de lógica.
 
@@ -283,23 +305,18 @@ La app vive en https://tallerya-beryl.vercel.app/ (repo
 dustsince2026-oss/tallerya, Vercel proyecto "tallerya", Supabase
 proyecto "TallerYa"). Esta versión solo hay que subirla encima:
 
-### 1. Crear la tabla de códigos en Supabase (PRIMERO)
-En Supabase → proyecto TallerYa → **SQL Editor → New query**, pegar
-y correr `sql/codigos-invitacion.sql`. Crea la tabla `invite_codes`
-con sus GRANT a `service_role`. La verificación del final debe dar
-**0** (tabla nueva, vacía). **Sin este paso el registro de talleres
-falla** (la tabla no existe).
-> Nota: la limpieza de los talleres de ejemplo
-> (`sql/quitar-talleres-ejemplo.sql`) ya se hizo en el deploy anterior;
-> si no se hubiera hecho, correrla también antes del deploy.
+### 1. SQL en Supabase: NO hace falta nada nuevo
+La tabla `invite_codes` **ya existe en vivo** (se creó en el deploy
+de códigos 2026-11-19, con sus GRANT a `service_role`). Esta versión
+no crea tablas ni cambia el esquema: solo se sube el código.
 
 ### 2. Subir el código a GitHub (rama main)
-Subir el contenido de `~/workspace/tallerya-codigos-taller/` (sin
+Subir el contenido de `~/workspace/tallerya-activacion-talleres/` (sin
 `data/` — está en `.gitignore`). Archivos nuevos o cambiados:
 `api/_lib/handlers.js`, `api/_lib/store.js`, `public/app.js`,
-`public/index.html`, `server.js`, `sql/codigos-invitacion.sql` (nuevo),
-`test/handlers.test.js`, `test/places.test.js`,
-`test/codigos.test.js` (nuevo), `README.md`.
+`public/index.html`, `server.js`, `test/handlers.test.js`,
+`test/places.test.js`, `test/codigos.test.js`,
+`test/activacion.test.js` (nuevo), `README.md`.
 Cada subida dispara el deploy automático en Vercel (~1 min).
 Recordar (lección del primer deploy 2026-11-19): el entrypoint en
 vivo es `server.js` (preset de Vercel "Node"); `vercel.json` lleva
@@ -317,12 +334,18 @@ sigue funcionando (solo talleres con la app + el aviso).
 3. Con la llave puesta → buscar "Choqué" → salen talleres REALES de
    hojalatería de Ensenada (con nombre, dirección y teléfono reales);
    buscar "Necesito grúa" → grúas reales.
-4. Registrar un taller de prueba **sin código** → debe dar error
-   "Ese código no es válido."
-5. Orlan (conductor, dueño) genera un código en **"Códigos de
-   invitación"** → el taller se registra con ese código → queda
-   aprobado y sale PRIMERO en "Choqué", antes que los de Google.
-   Registrar otro taller con el mismo código → error.
+4. Registrar un taller de prueba **sin código** → queda en espera
+   (approved=false): NO da error, NO aparece en "Choqué", y en su
+   panel sale el aviso de la visita con el campo para meter el código.
+   Registrar otro taller con un código que no existe → error "Ese
+   código no es válido."
+5. Orlan (conductor, dueño) ve al taller en **"Códigos de
+   invitación" → "Talleres en espera"**, genera un código y se lo
+   entrega: el taller lo mete en su panel (**"Activar mi taller"**) →
+   queda activo y sale PRIMERO en "Choqué", antes que los de Google.
+   Registrar otro taller con el mismo código → error. Atajo: un
+   taller que se registra metiendo un código válido entra aprobado
+   directo, sin espera.
 6. Avisar al taller desde el conductor → revisar que llegue la
    solicitud al panel y la notificación.
 7. Revisar en Vercel → Logs que no haya errores 500.
