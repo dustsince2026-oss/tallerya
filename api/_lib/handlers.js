@@ -284,6 +284,67 @@ async function diagnosticoFocos(store, b) {
   return { status: 200, data: { focos, especialistas } };
 }
 
+// Llama a Gemini con texto + imagen y pide JSON. Prueba los modelos en
+// orden (3.8 -> 3.6 -> 3.5-lite) y solo reintenta con otro modelo si es
+// saturación (503) o límite (429). Mismo patrón que la lectura de
+// dorsales de OnlyClick (misma llave, misma cuenta de Google).
+async function geminiVisionJson(key, parts) {
+  const MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+  let lastErr = null;
+  for (const model of MODELS) {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts }], generationConfig: { responseMimeType: 'application/json', temperature: 0 } }),
+    });
+    if (res.ok) {
+      const json = await res.json();
+      const text = (json.candidates && json.candidates[0] && json.candidates[0].content && json.candidates[0].content.parts && json.candidates[0].content.parts[0] && json.candidates[0].content.parts[0].text) || '';
+      return { ok: true, text };
+    }
+    let detail = '';
+    try { const ej = await res.json(); detail = String((ej.error && ej.error.message) || '').slice(0, 120); } catch (_) {}
+    lastErr = { status: res.status, detail };
+    if (res.status !== 503 && res.status !== 429) break;
+  }
+  return { ok: false, status: lastErr.status, detail: lastErr.detail };
+}
+
+// ---------------- Foquitos: leer la foto del tablero con IA ----------------
+// POST /api/focos-leer-foto { dataBase64, mimeType } → { ok, focos: [ids] }.
+// Manda la foto del tablero a Gemini con la lista de foquitos que la app
+// ya conoce y devuelve cuáles se ven PRENDIDOS. La foto no se guarda:
+// solo viaja en el cuerpo y el servidor la usa y la olvida. Sin
+// GEMINI_API_KEY devuelve { ok:false, reason:'no-key' } y la pantalla
+// usa la lista manual (la de siempre). Cuesta centavos por foto; si
+// Gemini no ve ninguno con claridad, devuelve la lista vacía y el
+// conductor pica a mano. Nunca se inventan foquitos: solo se devuelven
+// ids de la lista conocida.
+async function leerFocosFoto(b) {
+  // La llave se pega desde el teléfono y puede traer caracteres
+  // invisibles: se limpia igual que en OnlyClick.
+  const key = (process.env.GEMINI_API_KEY || '').replace(/[^\x20-\x7E]/g, '').trim();
+  if (!key) return { status: 200, data: { ok: false, reason: 'no-key' } };
+  const b64 = String((b && b.dataBase64) || '');
+  if (!b64) throw err(400, 'Falta la foto del tablero.');
+  const buf = Buffer.from(b64, 'base64');
+  if (!buf.length || buf.length > 2 * 1024 * 1024) throw err(400, 'La foto está vacía o pesa más de 2 MB.');
+  const mime = String((b && b.mimeType) || 'image/jpeg');
+  if (!mime.startsWith('image/')) throw err(400, 'No es una imagen.');
+  const lista = FOCOS.map(f => f.id + ' (' + f.nombre + ')').join(', ');
+  const prompt = 'En esta foto del tablero de un carro, ¿cuáles de estos foquitos de advertencia están PRENDIDOS (encendidos)? Lista: ' + lista + '. Responde solo con este JSON: {"focos": ["aceite", "bateria"]} usando solo los ids de la lista, tal como están escritos. Si no se ve ningún foquito prendido con claridad, responde {"focos": []}. No inventes foquitos que no se ven prendidos.';
+  const r = await geminiVisionJson(key, [{ text: prompt }, { inlineData: { mimeType: mime, data: buf.toString('base64') } }]);
+  if (!r.ok) return { status: 200, data: { ok: false, reason: 'ia-error', status: r.status, detail: r.detail } };
+  let ids = [];
+  try {
+    const parsed = JSON.parse(r.text.replace(/```json|```/g, '').trim());
+    const raw = parsed && Array.isArray(parsed.focos) ? parsed.focos : [];
+    const validos = new Set(FOCOS.map(f => f.id));
+    ids = [...new Set(raw.map(v => String(v).trim()).filter(v => validos.has(v)))];
+  } catch (_) { ids = []; }
+  return { status: 200, data: { ok: true, focos: ids } };
+}
+
 // ---------------- Avisar al taller (doble aviso) ----------------
 // Crea la solicitud en la base, deja la notificación en la app del taller
 // y devuelve el link de WhatsApp con el mensaje ya escrito. El aviso es
@@ -653,6 +714,25 @@ async function reverseGeocode(b) {
   return { status: 200, data: { direccion } };
 }
 
+// POST /api/geocode { direccion } → { lat, lng, direccion }
+// Convierte una dirección escrita a mano en coordenadas, para buscar
+// talleres cerca DEL DOMICILIO (no de donde está la persona) cuando el
+// servicio es a domicilio. Misma geocodificación que la grúa
+// (Nominatim, gratis, sin llave, con ", Ensenada" para no caer en
+// Mexicali). La dirección que devuelve es la normalizada por Nominatim.
+async function geocode(b) {
+  const dir = String((b && b.direccion) || '').trim();
+  if (!dir) throw err(400, 'Escribe el domicilio.');
+  let geo;
+  try {
+    geo = await geocodificarDireccion(dir);
+  } catch (e) {
+    throw err(502, 'No pudimos buscar ese domicilio ahorita. Inténtalo de nuevo.');
+  }
+  if (!geo) throw err(400, 'No encontré ese domicilio. Revisa que esté bien escrito.');
+  return { status: 200, data: { lat: geo.lat, lng: geo.lng, direccion: geo.display } };
+}
+
 // ---------------- Grúa: distancia del traslado ----------------
 // La grúa cobra por el traslado, así que el conductor escribe adónde
 // se lleva el vehículo y la app calcula los km de ruta real (no en
@@ -724,6 +804,8 @@ async function dispatch(route, req) {
     case 'pending-workshops-list': return listPendingWorkshops(store, user);
     case 'grua-distancia': return gruaDistancia(b);
     case 'reverse-geocode': return reverseGeocode(b);
+    case 'geocode': return geocode(b);
+    case 'focos-leer-foto': return leerFocosFoto(b);
     case 'foto-file': return fotoFile(store, user, req.query || {});
     default: throw err(404, 'Ruta no encontrada.');
   }
