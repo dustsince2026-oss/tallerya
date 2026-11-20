@@ -57,11 +57,12 @@ function distOf(shop, lat, lng) {
 // Especialidad del taller (texto del formulario) → tipos que atiende.
 function tiposDeEspecialidad(esp) {
   const e = String(esp || '').toLowerCase();
-  if (e.includes('varias')) return ['hojalateria', 'mecanico', 'electrico', 'grua'];
+  if (e.includes('varias')) return ['hojalateria', 'mecanico', 'electrico', 'grua', 'llantera'];
   if (e.includes('hojalat')) return ['hojalateria'];
   if (e.includes('mecán') || e.includes('mecan')) return ['mecanico', 'electrico'];
   if (e.includes('eléc') || e.includes('elec')) return ['electrico'];
   if (e.includes('grúa') || e.includes('grua')) return ['grua'];
+  if (e.includes('llant')) return ['llantera'];
   return ['mecanico'];
 }
 function shopMatchesTipo(shop, tipos) {
@@ -94,6 +95,7 @@ function publicAppShop(w, ofertas) {
     horario: w.horario || '', rating: Number(w.rating || 0), opiniones: w.opiniones || 0,
     plan: w.plan || 'Basico', distKm: Number(w.distKm || 0), lat: w.lat, lng: w.lng,
     abierto: true, servicios: w.servicios || '', tieneGrua: !!w.tieneGrua, aDomicilio: !!w.aDomicilio,
+    costoVisita: w.costoVisita == null ? null : Number(w.costoVisita),
     ofertas: (ofertas || []).filter(o => o.activa).map(o => ({ titulo: o.titulo, precio: o.precio, vigencia: o.vigencia })),
   };
 }
@@ -377,6 +379,7 @@ async function getPanel(store, user) {
         whatsapp: w.whatsapp, tieneGrua: w.tieneGrua, aDomicilio: w.aDomicilio,
         plan: w.plan, activo: w.activo, horario: w.horario, direccion: w.direccion,
         serviciosTexto: w.servicios || '', rating: w.rating, opiniones: w.opiniones,
+        costoVisita: w.costoVisita == null ? null : Number(w.costoVisita),
         aprobado: user.approved !== false,
       },
       solicitudes: solicitudesOut,
@@ -423,6 +426,10 @@ async function updateWorkshopProfile(store, user, b) {
   if (b.horario !== undefined) patch.horario = String(b.horario).slice(0, 40);
   if (b.direccion !== undefined) patch.direccion = String(b.direccion).slice(0, 120);
   if (b.servicios !== undefined) patch.servicios = String(b.servicios).slice(0, 500);
+  if (b.costoVisita !== undefined) {
+    const n = Number(b.costoVisita);
+    patch.costoVisita = (b.costoVisita === '' || b.costoVisita === null || !Number.isFinite(n) || n < 0) ? null : n;
+  }
   if (b.lat !== undefined) patch.lat = Number(b.lat) || null;
   if (b.lng !== undefined) patch.lng = Number(b.lng) || null;
   if (!patch.nombre) delete patch.nombre;
@@ -583,6 +590,52 @@ async function fotoFile(store, user, query) {
   return { status: 200, data: null, file };
 }
 
+// ---------------- Grúa: distancia del traslado ----------------
+// La grúa cobra por el traslado, así que el conductor escribe adónde
+// se lleva el vehículo y la app calcula los km de ruta real (no en
+// línea recta): el destino se geocodifica con Nominatim (OpenStreetMap,
+// gratis, sin llave) y la ruta se calcula con OSRM (gratis, sin llave).
+// Si alguno falla, el error se le muestra al conductor y la búsqueda
+// sigue sin los km (no se bloquea la ayuda).
+async function gruaDistancia(b) {
+  const { origenLat, origenLng, destino } = b || {};
+  if (origenLat == null || origenLng == null) throw err(400, 'Falta tu ubicación de recogida.');
+  const dest = String(destino || '').trim();
+  if (!dest) throw err(400, 'Escribe adónde se lleva el vehículo.');
+  const fetchJson = async (url, headers) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 8000);
+    try {
+      const r = await Promise.race([
+        fetch(url, { headers, signal: ctrl.signal }),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Tardó demasiado.')), 8000)),
+      ]);
+      if (!r.ok) throw new Error('Respondió ' + r.status + '.');
+      return r.json();
+    } finally { clearTimeout(timer); }
+  };
+  let geo;
+  try {
+    geo = await fetchJson(
+      'https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=mx&q=' + encodeURIComponent(dest + ', Baja California, México'),
+      { 'User-Agent': 'TallerYa/1.0 (contacto: dust.since2026@gmail.com)' });
+  } catch (e) {
+    throw err(502, 'No pudimos buscar esa dirección ahorita. Inténtalo de nuevo.');
+  }
+  if (!geo || !geo.length) throw err(400, 'No encontré esa dirección. Escríbela con calle y colonia, ej. Av. Reforma 232, Independencia.');
+  const destLat = parseFloat(geo[0].lat), destLng = parseFloat(geo[0].lon);
+  let route;
+  try {
+    route = await fetchJson(
+      `https://router.project-osrm.org/route/v1/driving/${origenLng},${origenLat};${destLng},${destLat}?overview=false`);
+  } catch (e) {
+    throw err(502, 'No pudimos calcular la distancia ahorita. Inténtalo de nuevo.');
+  }
+  if (!route.routes || !route.routes.length) throw err(400, 'No hay ruta entre esos dos puntos.');
+  const km = Math.round(route.routes[0].distance / 100) / 10;
+  return { status: 200, data: { km, destino: geo[0].display_name, destinoLat: destLat, destinoLng: destLng } };
+}
+
 // ---------------- Dispatch ----------------
 async function dispatch(route, req) {
   const store = getStore();
@@ -614,6 +667,7 @@ async function dispatch(route, req) {
     case 'invite-code-deactivate': return deactivateInviteCode(store, user, b);
     case 'activate-workshop': return activateWorkshop(store, user, b);
     case 'pending-workshops-list': return listPendingWorkshops(store, user);
+    case 'grua-distancia': return gruaDistancia(b);
     case 'foto-file': return fotoFile(store, user, req.query || {});
     default: throw err(404, 'Ruta no encontrada.');
   }
