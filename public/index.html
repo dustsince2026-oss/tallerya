@@ -91,6 +91,17 @@
     font-family: inherit;
   }
   input:focus, select:focus, textarea:focus { outline: 2px solid #F59E0B; border-color: #F59E0B; }
+  /* Ojito de la contraseña: el botón va dentro del campo, a la derecha */
+  .pass-wrap { position: relative; }
+  .pass-wrap input { padding-right: 48px; }
+  .pass-wrap button {
+    position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+    width: 40px; height: 40px; border: none; background: transparent;
+    color: #94a3b8; cursor: pointer; display: flex; align-items: center;
+    justify-content: center; border-radius: 10px; padding: 0; font-family: inherit;
+  }
+  .pass-wrap button:hover { color: #F59E0B; }
+  .pass-wrap button svg { width: 22px; height: 22px; }
   textarea { min-height: 80px; resize: vertical; }
   .row2 { display: flex; gap: 10px; }
   .row2 > div { flex: 1; }
@@ -300,7 +311,10 @@
     <label>Correo</label>
     <input id="aEmail" type="email" placeholder="tu@correo.com" autocomplete="email">
     <label>Contraseña</label>
-    <input id="aPass" type="password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+    <div class="pass-wrap">
+      <input id="aPass" type="password" placeholder="Mínimo 6 caracteres" autocomplete="current-password">
+      <button id="btnVerPass" type="button" aria-label="Mostrar contraseña" title="Mostrar contraseña"><i data-lucide="eye"></i></button>
+    </div>
     <div id="regRoleBox" style="display:none;">
       <label>Me registro como</label>
       <div class="seg">
