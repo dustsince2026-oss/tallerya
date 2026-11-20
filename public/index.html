@@ -198,13 +198,17 @@
       <div class="check-row">
         <input type="checkbox" id="aDomicilio"><span>Vamos a domicilio</span>
       </div>
-      <label>Plan que te interesa (precio por confirmar)</label>
+      <label>Plan que te interesa</label>
       <select id="aPlan">
         <option value="Basico">Básico</option>
         <option value="Destacado">Destacado</option>
         <option value="Premium">Premium</option>
       </select>
-      <p class="muted" style="margin-top:10px;">Tu registro se revisa antes de que aparezcas en los resultados.</p>
+      <p class="muted" style="margin-top:10px;">Plan gratis.</p>
+      <label>Código de invitación</label>
+      <input id="aCodigo" placeholder="Ej. TALLER-ABC123" style="text-transform:uppercase;" autocomplete="off">
+      <p class="muted" style="margin-top:10px;">Te lo entrega Orlan cuando visita tu taller. Sin código no te puedes registrar como taller.</p>
+      <p class="muted" style="margin-top:10px;">Con el código, tu taller aparece en los resultados en cuanto te registras.</p>
     </div>
     <button class="primary" id="authBtn" onclick="doAuth()">Entrar</button>
     <p class="err" id="authErr"></p>
@@ -224,6 +228,7 @@
     <div class="links">
       <button class="link" onclick="openDriverProfile()">Mis datos y mi seguro</button>
       <button class="link" id="panelLink" onclick="openPanel()">Mi panel de taller</button>
+      <button class="link" id="codigosLink" style="display:none;" onclick="openCodigos()">Códigos de invitación</button>
       <button class="link" onclick="logout()">Cerrar sesión</button>
     </div>
     <p class="saved" id="savedLine"></p>
@@ -374,7 +379,8 @@
     <button class="back" onclick="show('p-home')">← Volver</button>
     <h2>Mi taller</h2>
     <p class="calm" id="panelSub"></p>
-    <div id="panelPendiente" style="display:none;" class="note">Tu registro está en revisión. Cuando se apruebe, tu taller aparece en los resultados.</div>
+    <p class="muted">Plan gratis.</p>
+    <div id="panelPendiente" style="display:none;" class="note">Tu taller está desactivado por el dueño. Cuando se reactive, vuelve a aparecer en los resultados.</div>
 
     <h2 style="margin-top:6px;">Solicitudes que te llegaron</h2>
     <p class="muted">Cuando alguien pica “Avisar al taller”, te llega aquí y por WhatsApp al mismo tiempo, con su carro, su ubicación y su foto. Directo de la persona a ti, sin Google de por medio.</p>
@@ -421,7 +427,20 @@
     <h2 style="margin-top:22px;">Mi suscripción</h2>
     <div class="card" style="cursor:default;"><div class="meta" id="panelPlan"></div>
     <button class="ghost" id="pausaBtn" onclick="togglePausa()">Pausar mi anuncio</button></div>
-    <p class="muted" style="margin-top:10px;">Sin pagos dentro de la app por ahora: el cobro de la suscripción se acuerda directo (transferencia o Clip).</p>
+    <p class="muted" style="margin-top:10px;">Plan gratis. Cuando la app crezca, los planes de cobro se definirán después.</p>
+  </section>
+
+  <!-- ============ PANTALLA: CÓDIGOS DE INVITACIÓN (DUEÑO) ============ -->
+  <section id="p-codigos" class="screen">
+    <button class="back" onclick="show('p-home')">← Volver</button>
+    <h2>Códigos de invitación</h2>
+    <p class="calm">Genera un código por taller y entrégaselo en persona cuando vayas a verificarlo. Solo con ese código se puede registrar un taller.</p>
+    <label>Nombre del taller (opcional)</label>
+    <input id="codigoNota" placeholder="Ej. Hojalatería El Faro">
+    <button class="primary" onclick="generarCodigo()">Generar código</button>
+    <div id="codigoNuevo" style="display:none; margin-top:16px;"></div>
+    <h2 style="margin-top:22px;">Códigos</h2>
+    <div id="codigosList"></div>
   </section>
 
   <!-- ============ PANTALLA: AVISOS (CAMPANITA) ============ -->
