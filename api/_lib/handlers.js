@@ -121,24 +121,29 @@ async function register(store, b) {
   if (await store.findUserByEmail(email)) throw err(400, 'Ese correo ya tiene cuenta. Inicia sesión.');
   const tallerNombre = role === 'workshop' ? String(b.tallerNombre || name).trim() : '';
   if (role === 'workshop' && !tallerNombre) throw err(400, 'Escribe el nombre del taller.');
-  // Registro de taller SOLO con código de invitación (decisión de Orlan
-  // 2026-11-19): el dueño va en persona al taller, verifica que existe
-  // y le entrega el código al encargado. Sin código no hay registro.
-  // El mismo mensaje para los tres casos (falta / no existe / ya se usó)
-  // para no dar pistas. El conductor no necesita código.
+  // Registro de taller (decisión de Orlan 2026-11-19, corregida el
+  // mismo día): el taller SE PUEDE REGISTRAR SOLO y queda EN ESPERA
+  // (approved=false) hasta que Orlan va en persona a verificarlo y le
+  // entrega el código; con el código el taller ACTIVA su cuenta (ver
+  // activateWorkshop). El código es OPCIONAL al registrarse: si ya se
+  // lo dieron antes, lo mete aquí y entra aprobado en ese momento
+  // (atajo). Código inválido (no existe o ya se usó) → 400 con el
+  // mismo mensaje para no dar pistas. El conductor no necesita código.
   let invite = null;
   if (role === 'workshop') {
     const inviteCode = String(b.inviteCode || '').trim().toUpperCase();
-    if (!inviteCode) throw err(400, 'Ese código no es válido.');
-    invite = await store.findInviteCodeByCode(inviteCode);
-    if (!invite || invite.usedBy) throw err(400, 'Ese código no es válido.');
+    if (inviteCode) {
+      invite = await store.findInviteCodeByCode(inviteCode);
+      if (!invite || invite.usedBy) throw err(400, 'Ese código no es válido.');
+    }
   }
   const owner = isOwnerEmail(email);
   const user = await store.createUser({
     name, email, passwordHash: hashPassword(password), role,
     phone: String(b.phone || '').trim().slice(0, 20),
-    // Con código el taller ya está verificado en persona: entra aprobado.
-    isOwner: owner, approved: true,
+    // Sin código el taller queda en espera de la visita de Orlan.
+    // Con código ya está verificado en persona: entra aprobado.
+    isOwner: owner, approved: role === 'workshop' ? !!invite : true,
   });
   let workshop = null;
   if (role === 'workshop') {
@@ -152,8 +157,11 @@ async function register(store, b) {
     });
     // Marcar el código como usado ANTES de devolver éxito. Si falla
     // (otro registro lo usó al mismo tiempo), el registro falla también.
-    const marked = await store.markInviteCodeUsed(invite.code, user.id);
-    if (!marked) throw err(400, 'Ese código no es válido.');
+    // Solo cuando el taller trajo código: sin código no hay nada que marcar.
+    if (invite) {
+      const marked = await store.markInviteCodeUsed(invite.code, user.id);
+      if (!marked) throw err(400, 'Ese código no es válido.');
+    }
   }
   return { status: 201, data: { user: publicUser(user), workshop: workshop ? { id: workshop.id, nombre: workshop.nombre } : null, token: signToken(user.id) } };
 }
@@ -515,6 +523,46 @@ async function deactivateInviteCode(store, user, b) {
   return { status: 200, data: { ok: true } };
 }
 
+// ---------------- Activación del taller con su código ----------------
+// El taller se registra solo y queda en espera (approved=false).
+// Cuando Orlan va en persona a verificarlo, le entrega el código y
+// el taller lo mete aquí para ACTIVAR su cuenta. El código sirve una
+// sola vez; el mismo mensaje para falta / no existe / ya se usó.
+async function activateWorkshop(store, user, b) {
+  requireUser(user);
+  if (user.role !== 'workshop') throw err(400, 'Solo los talleres activan su cuenta con un código.');
+  if (user.approved) throw err(400, 'Tu taller ya está activo.');
+  const inviteCode = String(b.inviteCode || '').trim().toUpperCase();
+  if (!inviteCode) throw err(400, 'Ese código no es válido.');
+  const invite = await store.findInviteCodeByCode(inviteCode);
+  if (!invite || invite.usedBy) throw err(400, 'Ese código no es válido.');
+  // Marcar el código como usado ANTES de aprobar. Si falla (otro lo
+  // usó al mismo tiempo), la activación falla también.
+  const marked = await store.markInviteCodeUsed(invite.code, user.id);
+  if (!marked) throw err(400, 'Ese código no es válido.');
+  const updated = await store.updateUser(user.id, { approved: true });
+  const w = await store.getWorkshopByUserId(user.id);
+  return { status: 200, data: { user: publicUser(updated), workshop: w ? { id: w.id, nombre: w.nombre } : null } };
+}
+
+// ---------------- Talleres en espera (dueño) ----------------
+// Para que Orlan sepa a quién le falta visitar: talleres registrados
+// que todavía no están activos.
+async function listPendingWorkshops(store, user) {
+  requireOwner(user);
+  const workshops = await store.listWorkshops();
+  const out = [];
+  for (const w of workshops) {
+    const u = await store.findUserById(w.userId);
+    if (!u || u.role !== 'workshop' || u.approved !== false) continue;
+    out.push({
+      workshopId: w.id, nombre: w.nombre, contacto: u.name,
+      email: u.email, telefono: u.phone || '', registrado: u.createdAt || w.createdAt || null,
+    });
+  }
+  return { status: 200, data: { pendientes: out } };
+}
+
 // ---------------- Foto adjunta a una solicitud ----------------
 async function fotoFile(store, user, query) {
   const key = String(query.key || '');
@@ -564,6 +612,8 @@ async function dispatch(route, req) {
     case 'invite-code-create': return createInviteCode(store, user, b);
     case 'invite-codes-list': return listInviteCodes(store, user);
     case 'invite-code-deactivate': return deactivateInviteCode(store, user, b);
+    case 'activate-workshop': return activateWorkshop(store, user, b);
+    case 'pending-workshops-list': return listPendingWorkshops(store, user);
     case 'foto-file': return fotoFile(store, user, req.query || {});
     default: throw err(404, 'Ruta no encontrada.');
   }

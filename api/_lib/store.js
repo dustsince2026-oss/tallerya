@@ -205,9 +205,11 @@ const fileStore = {
   },
 
   // ---- Códigos de invitación para talleres ----
-  // Solo entran talleres verificados por el dueño en persona: él genera
-  // el código, lo entrega en el taller y el taller lo mete al registrarse.
-  // Un código sirve una sola vez. Ver sql/codigos-invitacion.sql.
+  // Solo entran talleres verificados por el dueño en persona: el
+  // taller se registra solo y queda en espera; Orlan genera el código,
+  // lo entrega en el taller y el taller lo mete para ACTIVAR su cuenta
+  // (o directo al registrarse, si ya lo tiene). Un código sirve una
+  // sola vez. Ver sql/codigos-invitacion.sql.
   async createInviteCode(c) {
     const db = loadDb();
     const row = {
