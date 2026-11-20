@@ -11,6 +11,7 @@ test('haversine: distancia Ensenada centro → Valle Verde ≈ 1-2 km', () => {
 
 test('tipos de especialidad del formulario', () => {
   assert.deepEqual(tiposDeEspecialidad('Hojalatería y pintura'), ['hojalateria']);
+  assert.deepEqual(tiposDeEspecialidad('Carrocería/hojalatería y pintura'), ['hojalateria']);
   assert.deepEqual(tiposDeEspecialidad('Mecánica'), ['mecanico', 'electrico']);
   assert.deepEqual(tiposDeEspecialidad('Eléctrico automotriz'), ['electrico']);
   assert.deepEqual(tiposDeEspecialidad('Grúas'), ['grua']);
