@@ -324,8 +324,10 @@
     <button class="back" onclick="show('p-home')">← Volver</button>
     <h2 id="datosTitle">¿Dónde estás?</h2>
     <p class="calm" id="datosNote">Solo ocupamos esto para buscarte el taller más cercano.</p>
-    <button class="big" onclick="useLocation()">📍 Usar mi ubicación</button>
-    <p class="muted" id="locLine" style="margin-top:10px;">Todavía no tenemos tu ubicación.</p>
+    <div id="locBox">
+      <button class="big" onclick="useLocation()">📍 Usar mi ubicación</button>
+      <p class="muted" id="locLine" style="margin-top:10px;">Todavía no tenemos tu ubicación.</p>
+    </div>
     <div id="gruaBox" style="display:none;">
       <label>¿Dónde se recoge el vehículo?</label>
       <input id="dRecogida" placeholder="Mi ubicación actual" disabled>
