@@ -558,28 +558,34 @@ sigue funcionando (solo talleres con la app + el aviso).
   grúa, llantera y otro. Si no hay internet para buscar la dirección,
   queda el "Ubicación lista ✓" de antes. Suite 87/87.
 - **Domicilio a mano para servicios a domicilio (pedido de Orlan
-  ~01:50, CONSTRUIDO, pendiente subir en vivo):** cuando el servicio
-  es a domicilio (presupuesto o asistencia en casa) sale la casilla
-  "¿En qué domicilio es el servicio?" — por defecto trae tu ubicación
-  actual, y si no estás en tu casa, el enlace "Escribir la dirección
-  a mano" abre el cuadro para escribir el domicilio. Los talleres se
-  buscan cerca DEL DOMICILIO (no de donde estás tú) y el aviso al
-  taller lleva la dirección ("· Domicilio: ..."). Nueva ruta POST
-  /api/geocode (Nominatim, gratis, sin llave, con ", Ensenada" para
-  no caer en Mexicali). Cambios: index.html (casilla), app.js
+  ~01:50, DESPLEGADO EN VIVO 2026-11-20 ~02:05 y VERIFICADO con curl
+  por Bibi):** cuando el servicio es a domicilio (presupuesto o
+  asistencia en casa) sale la casilla "¿En qué domicilio es el
+  servicio?" — por defecto trae tu ubicación actual, y si no estás
+  en tu casa, el enlace "Escribir la dirección a mano" abre el
+  cuadro para escribir el domicilio. Los talleres se buscan cerca
+  DEL DOMICILIO (no de donde estás tú) y el aviso al taller lleva
+  la dirección ("· Domicilio: ..."). Nueva ruta POST /api/geocode
+  (Nominatim, gratis, sin llave, con ", Ensenada" para no caer en
+  Mexicali). Cambios: index.html (casilla), app.js
   (esDomicilio/setOrigenDomicilio/domicilioTexto, búsqueda por
   domicilio, aviso con domicilio), handlers.js + server.js (ruta
   geocode), test/domicilio.test.js (11 pruebas nuevas),
   test/modos.test.js (2 pruebas actualizadas al nuevo aviso).
   Suite 98/98. Prueba real con Nominatim: "Av. Rayón 273,
-  Ensenada" → 31.86122, -116.610283, Ensenada.
-- **Logo sin esquinas blancas (pedido de Orlan ~01:53, CONSTRUIDO,
-  pendiente subir en vivo):** logo.png, icon-192.png e icon-512.png
-  eran PNG sin transparencia con las esquinas blancas y se veían
-  feas sobre el fondo azul oscuro. Ahora el fondo (blanco de las
-  esquinas + cuadro negro) es transparente y solo queda el pin
-  dorado con la llave. Verificado sobre #0b1622: las esquinas ya son
-  el color del fondo. Script: `~/workspace/your_files/make_logo_tallerya_transparente.py`.
+  Ensenada" → 31.86122, -116.610283, Ensenada. Commits: index.html
+  45cfdd9, app.js b09530b, handlers.js 2766e7b, server.js 9f5b25e,
+  tests 00dd012/abc5e88, README a9b0ef1; Vercel Ready. Verificado
+  en vivo con curl: home 200, geocode vivo OK.
+- **Logo sin esquinas blancas (pedido de Orlan ~01:53, DESPLEGADO
+  EN VIVO 2026-11-20 ~02:05 con el mismo deploy y VERIFICADO con
+  curl por Bibi):** logo.png, icon-192.png e icon-512.png eran PNG
+  sin transparencia con las esquinas blancas y se veían feas sobre
+  el fondo azul oscuro. Ahora el fondo (blanco de las esquinas +
+  cuadro negro) es transparente y solo queda el pin dorado con la
+  llave. Verificado en vivo: logo 512 RGBA, esquina alpha 0.
+  Commits bea13b2/a0f453b/c38e59d. Script:
+  `~/workspace/your_files/make_logo_tallerya_transparente.py`.
 - **Foquitos con IA (pedido de Orlan ~01:54, CONSTRUIDO, frente
   pendiente subir en vivo):** al tomar la foto del tablero, Gemini
   marca solos los foquitos prendidos (misma IA y mismo patrón que
