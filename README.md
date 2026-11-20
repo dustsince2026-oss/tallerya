@@ -375,3 +375,220 @@ sigue funcionando (solo talleres con la app + el aviso).
   incidente elegido se busca por clave (`find(i => i.k === 'otro')`),
   NO por índice, para que quitar o mover un botón no cambie el
   valor por defecto.
+
+## Botón Llantera en vez de Falla eléctrica (2026-11-19)
+
+- Orlan notó que "Falla eléctrica" repetía lo que ya cubre "No arranca"
+  (mecánico o eléctrico). El botón ahora es **"🛞 Llantera"** (llantas,
+  ponchadura, balanceo), con tipo nuevo `llantera`: pregunta a Google
+  "llantera en Ensenada" y especialidad "Llantera" en el registro de
+  talleres. Lo eléctrico sigue existiendo por dentro: `noarranca` busca
+  mecánico + eléctrico, el diagnóstico del foquito recomienda taller
+  eléctrico, y `incident=electrico` queda como alias en el servidor.
+  `otro` y `Varias` ahora incluyen también `llantera`.
+
+## Modos de Choqué + costo por la visita (2026-11-19/20)
+
+- El botón "Choqué" dice solo **"Carrocería/hojalatería"** (sin pintura
+  ni lo de presupuestos). Al picarlo NO va directo a pedir la ubicación:
+  primero abre una pantalla con 3 modos — **"Necesito
+  asistencia/presupuesto en el lugar del percance"** (con etiqueta roja
+  **URGENTE**), **"Necesito un presupuesto (yo conduzco el auto hasta el
+  taller)"** y **"Necesito un presupuesto a domicilio"** — y el modo
+  elegido se guarda en el aviso al taller y en el subtítulo de
+  resultados. Los otros incidentes van directo a la ubicación, como
+  antes. Verificación en `/tmp/choque-modos-check.js` (jsdom, 21
+  comprobaciones: flujo, etiquetas, subtítulo y costo).
+- **Costo por la visita:** los dos presupuestos fuera del taller (en el
+  lugar del percance y a domicilio) TIENEN COSTO — lo pone cada taller
+  en su panel ("Costo por ir a cotizar fuera del taller", MXN) y cubre
+  el servicio, el tiempo y el traslado del carrocero. Si el taller no
+  lo pone, se muestra "a convenir". Llevar el carro al taller (modo
+  "yo conduzco") no lleva costo extra. El precio sale en la tarjeta de
+  resultados, en la ficha del taller y en el aviso que le llega al
+  taller. Campo nuevo `workshops.costo_visita` (SQL
+  `sql/costo-visita.sql`, también agregado a `sql/schema.sql`); el
+  panel lo guarda con `panel-profile` y la búsqueda lo devuelve en
+  `publicAppShop`.
+
+## Botones amarillos (2026-11-20)
+
+- Orlan: los botones grandes se veían azules (`#1c3a5c` del v1). Ahora
+  son **amarillos un poco transparentes** (`rgba(245,179,1,.85)`, el
+  dorado de la app) con **las letras en color sólido oscuro** (#1a1a1a;
+  el texto chico en #3a3a3a, también sólido). El estado seleccionado
+  quedó con borde oscuro. Los botones dorados principales (`.primary`)
+  ya eran así y no se tocaron.
+
+## Modos de No arranca (2026-11-20)
+
+- Igual que Choqué: al picar **"No arranca"** primero sale una
+  pantalla con modos. **Orlan 2026-11-20 ~00:26: sí lleva costo y son
+  3 modos** — dos asistencias fuera del taller + llevar el carro: (1)
+  "📍 Necesito un mecánico en mi ubicación actual" con etiqueta
+  **URGENTE** (frase ELEGIDA por Orlan 2026-11-20 ~00:37, tras
+  probar él mismo el flujo como usuario; antes decía "Asistencia
+  donde se quedó el carro", propuesta por Bibi), (2) "🏠 Asistencia
+  mecánica a domicilio" sin etiqueta, (3) "🚗 Puedo manejar el carro
+  hasta el taller" sin etiqueta. Las dos
+  asistencias fuera del taller **SÍ llevan costo por la visita** (mismo
+  campo `costo_visita` del panel; la tarjeta dice "Asistencia fuera
+  del taller: $X MXN (servicio, tiempo y traslado)" y el aviso al
+  taller lleva "(costo por la visita: $X MXN)"); llevar el carro no
+  lleva costo extra. El campo del panel ahora se llama "Costo por ir a
+  atender fuera del taller (MXN)" y su ayuda cubre los 3 casos (lugar
+  del percance, domicilio, donde se quedó el carro).
+- La frase del botón urgente ("Necesito un mecánico en mi ubicación
+  actual") la eligió Orlan tras simular el caso como usuario; antes
+  decía "Asistencia donde se quedó el carro" (propuesta de Bibi).
+- Suite `test/modos.test.js` (jsdom, 5 tests): 3 modos con URGENTE
+  solo en el 1, costo en tarjeta y aviso para lugar y domicilio,
+  conduzco sin costo, y regresión de Choqué. **Suite total: 61/61.**
+
+## Modos de Llantera (2026-11-20)
+
+- Igual que Choqué y No arranca: al picar **"Llantera"** primero sale
+  una pantalla con **2 opciones**: (1) "🏠 Llantera a domicilio",
+  (2) "📍 Necesito la llantera más cercana". Ninguna lleva etiqueta
+  URGENTE (Orlan no la pidió aquí). El modo elegido aparece en el
+  subtítulo de resultados y en el aviso que le llega a la llantera.
+- La llantera a domicilio **todavía NO lleva costo por la visita**
+  (pendiente la decisión de Orlan, como antes con el mecánico).
+- Suite `test/modos.test.js` (jsdom, 8 tests: +3 de llantera).
+  **Suite total: 64/64.**
+
+## Carrusel del inicio (2026-11-20)
+
+- Orlan 2026-11-20 ~00:43 (con imagen de referencia: conductor con el
+  cofre abierto mirando su teléfono): en el inicio, en el espacio de
+  abajo de los botones, imágenes que van cambiando solas haciendo
+  referencia a la app, con frases: (1) "Asistencia para tu
+  vehículo", (2) "Te asisten profesionales", (3) "La mejor opción
+  para tu vehículo".
+- Implementación: 3 imágenes originales generadas para TallerYa
+  (`public/carrusel-1.jpg` conductor con el cofre abierto en la
+  costa de Ensenada, `carrusel-2.jpg` mecánico profesional en el
+  taller, `carrusel-3.jpg` familia viajando tranquila al atardecer;
+  sin texto dentro de la imagen — la frase va en HTML encima, en
+  dorado sobre degradado oscuro). El carrusel cambia solo cada 5
+  segundos y los puntitos dejan cambiar de imagen a mano.
+- Suite `test/carrusel.test.js` (jsdom, 3 tests): 3 imágenes con sus
+  frases y 3 puntitos, picar un puntito cambia la imagen, las 3
+  existen en public/. **Suite total: 76/76.**
+- Lección: el `setInterval` del carrusel dejaba colgado `npm test`
+  (el proceso no terminaba); los 3 archivos jsdom ahora cierran su
+  ventana con un hook `after()` y la suite vuelve a terminar en ~15 s.
+
+- **APROBADO por Orlan ~00:39 ("Sí, arma la grúa así") y CONSTRUIDO.**
+  La pantalla de datos de la grúa ahora pide los dos lugares: (1)
+  "¿Dónde se recoge el vehículo?" (por defecto "Mi ubicación
+  actual", editable) y (2) "¿Adónde se lleva el vehículo?" (texto
+  libre, obligatorio — sin destino no busca). Al picar "Buscar grúas
+  cercanas", el servidor calcula los **km de ruta real** (no en línea
+  recta) y los muestra en la pantalla ("Distancia del traslado: X km")
+  y en el subtítulo de resultados ("Traslado: X km"); el aviso que le
+  llega a la grúa lleva los dos lugares y los km ("Necesito grúa ·
+  Recoger en: … · Llevar a: … (X km)").
+- El cálculo es **gratis y sin llave**: el destino se geocodifica con
+  Nominatim (OpenStreetMap) y la ruta se calcula con OSRM
+  (router.project-osrm.org), nueva ruta `POST /api/grua-distancia`
+  (dispatch `grua-distancia`, server.js ROUTES). Si Nominatim/OSRM
+  falla, se avisa en la pantalla y la búsqueda sigue sin los km (no
+  se bloquea la ayuda); sin GPS no hay km pero sí búsqueda.
+- Suite `test/grua.test.js` (5 jsdom + 4 backend con fetch stubbeado):
+  dos campos, sin destino no busca, km en resultados y aviso, fallo
+  sin bloquear, sin GPS sin km. **Suite total: 73/73.**
+- Prueba real 2026-11-20 ~00:41: servidor local + Nominatim/OSRM en
+  vivo → Av. Reforma 232 desde Av. Rayón = **2.9 km** de ruta.
+
+- El flujo actual de grúa solo pide dónde está el carro (un solo
+  lugar, por GPS); NO hay dos cuadritos de recoger/llevar. Sí se puede
+  calcular la distancia del traslado en km (ruta real por carretera,
+  no en línea recta): dos lugares (recoger / llevar) -> coordenadas ->
+  ruta (OSRM de OpenStreetMap, gratis y sin llave; o Google Distance
+  Matrix con la llave que Orlan ya está creando) -> km. Pendiente que
+  Orlan apruebe armar los dos campos + el cálculo.
+
+## Iconos en los botones (2026-11-20)
+
+- Los botones de incidente SÍ llevan icono en la app real (emojis:
+  🚗 🔧 🚛 🛞 ❓ 💡), pero las vistas previas de PIL no pueden dibujar
+  emojis y se veían sin nada — por eso Orlan preguntó. El script de
+  mockups (`~/workspace/make_mockup_tallerya_rediseno.py`) ahora dibuja
+  los iconos a mano con formas simples (carro, batería, grúa, llanta,
+  "?", foquito) para que la vista previa se parezca a la app real.
+- Los 3 modos de Choqué también llevan icono ahora (📍 lugar, 🚗 yo
+  conduzco, 🏠 domicilio); el texto que ve el taller y el subtítulo de
+  resultados quitan el emoji al inicio, igual que los botones de
+  incidente.
+
+## Tipografía (2026-11-20)
+
+- La app usa la letra del sistema del teléfono (`system-ui...`). Orlan
+  dijo que no le gusta. Opciones preparadas con vistas previas (fuentes
+  de Google Fonts, TTF en `/tmp/fuentes/`): **Poppins** (geométrica,
+  moderna), **Nunito** (redonda, amable), **Montserrat** (limpia,
+  fuerte). **DECISIÓN de Orlan 2026-11-20 ~00:16: le gusta la
+  tipografía original** — se queda `system-ui`, SIN Google Fonts; las
+  3 opciones quedaron descartadas. No hay cambio de código por esto. OJO al bajar las
+  fuentes: Nunito y Montserrat vienen como variables y hay que fijar el
+  peso con `set_variation_by_axes` en PIL (si no, salen en Thin 100 /
+  ExtraLight 200).
+
+## Rediseño inspirado en SafeCar (2026-11-19, SIN desplegar)
+
+Orlan vio la app SafeCar y le gustó su diseño: se ve profesional, tiene
+un mapita en vivo con tu ubicación y fondos con foto. Pidió rediseñar
+TallerYa INSPIRADA en SafeCar, sin copiarla ("No lo copies, quiero que
+sea inspirado. Solamente no una copia.").
+
+Qué se tomó como inspiración (solo la sensación):
+- Un mapa en vivo en la pantalla de resultados, con tu ubicación en
+  tiempo real y los talleres cercanos como pines.
+- Un fondo con foto oscura y profesional en la pantalla principal.
+- Acabado general más profesional: más aire, tarjetas con sombra suave.
+
+Qué se mantuvo propio (nada de copia):
+- Identidad de TallerYa: colores azul marino + dorado, SU logo (pin
+  dorado con llave), sus botones de incidente, sus textos y su flujo.
+- Nada del amarillo/negro de SafeCar, nada de su logo, nombre, pantallas
+  ni textos.
+
+Qué cambió (archivos):
+- `public/hero-taller.jpg` (NUEVO): foto original generada para
+  TallerYa (taller oscuro, carro clásico en elevador, luces cálidas;
+  sin texto ni logos). Es el fondo de la pantalla principal y del inicio
+  de sesión, con un velo azul marino encima para que se lea el texto.
+- `public/index.html`: Leaflet 1.9.4 por CDN (CSS + JS), contenedor
+  `#mapaResultados` + nota `#mapaNota` en la pantalla de resultados,
+  clase `hero` en las pantallas de inicio y de entrar, CSS del mapa,
+  de los pines y del pulido de tarjetas/botones.
+- `public/app.js`: `initMapa()` (mapa con OpenStreetMap, punto azul del
+  conductor, pines dorados de los talleres con coordenadas; picar un pin
+  abre su ficha), `ponerMarcadorYo()` y `watchPosition` en `useLocation()`
+  para que el punto azul se mueva en vivo. Sin GPS, el mapa se centra en
+  Ensenada (31.866, -116.596) con un aviso corto. La lista de talleres
+  se queda igual, debajo del mapa. Si Leaflet no carga, la lista sigue
+  funcionando.
+- `test/handlers.test.js`: prueba nueva "la búsqueda trae las
+  coordenadas del taller cuando las tiene (para el mapa)". El servidor YA
+  devolvía lat/lng en la búsqueda (publicAppShop y mapPlace); no se
+  cambió el servidor. Las coordenadas solo existen si el taller las
+  guardó en su panel (perfil) o vienen de Google Places: nunca se
+  inventan.
+
+Cómo verificarlo (local, antes de desplegar):
+- `npm test` → 53/53 (52 anteriores + 1 nueva).
+- `node server.js` con TALLERYA_DATA_DIR temporal → home 200,
+  /hero-taller.jpg 200, /api/search?incident=choque 200.
+- Comprobación del mapa con jsdom (script puntual en /tmp/mapa-check.js,
+  no parte de la suite): 16/16 PASS — flujo completo (picar Choqué,
+  ubicación, buscar), mapa creado, punto azul, pines solo con
+  coordenadas, popup con "Ver taller", encuadre de puntos.
+- Captura de pantalla: no se pudo tomar en esta VM (el Chromium de la
+  imagen no arranca fuera del navegador de Hatch: "Hatch WebGL domain
+  policy is required"). La foto del fondo se revisó directo
+  (public/hero-taller.jpg) y el mapa se verificó con el script jsdom.
+
+Pendiente antes de desplegar: que Orlan vea el diseño y lo apruebe.
+NO subir a GitHub ni a Vercel hasta entonces.
