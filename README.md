@@ -187,8 +187,8 @@ código (`api/_lib/seed.js` ya no los tiene), ni en el adaptador local
 - `api/_lib/places.js` llama a la API **Places (New)** de Google:
   Text Search (`POST /v1/places:searchText`) para buscar y Place
   Details (`GET /v1/places/{placeId}`) para la ficha. Timeout de 8 s.
-- La pregunta a Google depende del incidente: `choque` → "hojalatería
-  y pintura en Ensenada", `noarranca`/`otro`/`foquito` → "taller
+- La pregunta a Google depende del incidente: `choque` → "carrocería
+  y hojalatería en Ensenada", `noarranca`/`otro`/`foquito` → "taller
   mecánico en Ensenada", `grua` → "grúas en Ensenada", `electrico` →
   "taller eléctrico automotriz en Ensenada". Con GPS del conductor se
   manda un círculo de 15 km como `locationBias`.
@@ -332,7 +332,7 @@ sigue funcionando (solo talleres con la app + el aviso).
    resultados** + la línea "Los talleres de Google se activan cuando
    se agregue la llave."
 3. Con la llave puesta → buscar "Choqué" → salen talleres REALES de
-   hojalatería de Ensenada (con nombre, dirección y teléfono reales);
+   carrocería/hojalatería de Ensenada (con nombre, dirección y teléfono reales);
    buscar "Necesito grúa" → grúas reales.
 4. Registrar un taller de prueba **sin código** → queda en espera
    (approved=false): NO da error, NO aparece en "Choqué", y en su
@@ -356,3 +356,22 @@ sigue funcionando (solo talleres con la app + el aviso).
 - Publicación en Play Store (PWA → TWA, cuenta de desarrollador
   $25 USD por única vez, como se decidió en el plan).
 - Dominio `tallerya.com.mx` (Orlan lo revisa en Cloudflare).
+
+## Botón único Choqué + terminología carrocería/hojalatería (2026-11-19)
+
+- El botón **"Presupuesto de hojalatería" se eliminó**: era lo mismo que
+  "Choqué" (si chocaste necesitas el presupuesto del choque) y ambos
+  buscaban talleres de hojalatería. Quedó un solo botón **"Choqué"**
+  con el subtítulo "Carrocería/hojalatería y pintura · te dan el
+  presupuesto". En el servidor `incident=presupuesto` sigue funcionando
+  como alias de `choque` para no romper clientes viejos (test
+  "choqué y presupuesto son lo mismo" en test/handlers.test.js).
+- **Terminología (regla de Orlan):** donde la app se refiere a la
+  hojalatería, dice **"carrocería/hojalatería"** — botón, títulos de
+  resultados, notas, especialidad del formulario, ficha de Google y
+  pregunta a Google ("carrocería y hojalatería en Ensenada"). La clave
+  interna sigue siendo `hojalateria` (código, base de datos, tipos).
+- Ojo al tocar la lista de botones: el valor por defecto cuando no hay
+  incidente elegido se busca por clave (`find(i => i.k === 'otro')`),
+  NO por índice, para que quitar o mover un botón no cambie el
+  valor por defecto.
