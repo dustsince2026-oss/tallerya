@@ -23,14 +23,14 @@ const DETAILS_FIELD_MASK = SEARCH_FIELD_MASK.replace(/places\./g, '');
 // Tipo de taller → lo que se le pregunta a Google (todo en Ensenada).
 const QUERY_TEXT = {
   mecanico: 'taller mecánico en Ensenada',
-  hojalateria: 'hojalatería y pintura en Ensenada',
+  hojalateria: 'carrocería y hojalatería en Ensenada',
   grua: 'grúas en Ensenada',
   electrico: 'taller eléctrico automotriz en Ensenada',
 };
 // Especialidad que se muestra en la ficha, según el tipo buscado.
 const ESP_POR_TIPO = {
   mecanico: 'Mecánica general',
-  hojalateria: 'Hojalatería y pintura',
+  hojalateria: 'Carrocería/hojalatería y pintura',
   grua: 'Grúas y arrastre',
   electrico: 'Eléctrico automotriz',
 };
