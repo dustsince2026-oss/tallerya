@@ -514,6 +514,23 @@ sigue funcionando (solo talleres con la app + el aviso).
   origen manual en backend. **Suite total: 85/85.**
 - Prueba real 2026-11-20 ~00:41: servidor local + Nominatim/OSRM en
   vivo → Av. Reforma 232 desde Av. Rayón = **2.9 km** de ruta.
+- **DESPLEGADO EN VIVO 2026-11-20 ~01:26 y VERIFICADO con curl por
+  Bibi** (6 archivos/6 commits, último 2fb332d; Vercel Ready):
+  home 200, app.js en vivo idéntico a la carpeta (md5 b08aca9b),
+  reverse-geocode en vivo = "Avenida Ignacio López Rayón,
+  Independencia, Ensenada", grúa origen manual = 1.9 km y origen GPS
+  = 2.5 km, destino en Ensenada. **CONFIRMADO por Orlan en su
+  teléfono ~01:30 (captura: los dos botones se ven en vivo).**
+- **Corrección de Orlan ~01:30: UN SOLO botón de ubicación.** Los dos
+  botones de ubicación ("Usar mi ubicación" arriba y "Mi ubicación
+  actual" abajo) eran lo mismo dos veces: ahora solo queda el de
+  arriba, que al picarlo llena DIRECTO el cuadro con tu dirección.
+  "Escribir la dirección a mano" quedó como un enlace discreto abajo
+  del cuadro (no un botón). Cambios: index.html (se quitan los dos
+  botones + CSS, se agrega el enlace), app.js (setOrigenGrua sin
+  botones; el enlace se ata en JS), test/grua.test.js (el botón
+  "Mi ubicación actual" ya no existe). Suite 85/85. **Pendiente:
+  aprobación de Orlan para subir en vivo.**
 
 - El flujo actual de grúa solo pide dónde está el carro (un solo
   lugar, por GPS); NO hay dos cuadritos de recoger/llevar. Sí se puede
