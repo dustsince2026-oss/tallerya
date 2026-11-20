@@ -13,9 +13,11 @@ persona a persona. Ensenada, Baja California.
 - **Estilo:** azul marino oscuro + dorado, como el prototipo aprobado
   (`~/workspace/goals/app-de-talleres-mec-nicos-y-hojalater-a/files/prototipo-talleres.html`).
 
-> **Estado: código listo y probado en local. NO está desplegado.**
-> No se creó ningún repositorio, proyecto de Vercel ni proyecto de
-> Supabase. Los pasos para desplegar están abajo.
+> **Estado: EN VIVO desde 2026-11-19: https://tallerya-beryl.vercel.app/**
+> (GitHub dustsince2026-oss/tallerya, Supabase proyecto "TallerYa",
+> Vercel proyecto "tallerya"). Esta carpeta es la versión con Google
+> Places reales: todavía NO desplegada — ver "Despliegue de esta
+> versión" abajo.
 
 ## Qué se construyó
 
@@ -26,11 +28,15 @@ server.js                  Punto de entrada ÚNICO en producción (Vercel).
                            NO los wrappers api/*.js.)
 api/_lib/handlers.js       Toda la lógica: auth, búsqueda, notify, panel,
                            foquitos, foto, notificaciones, stats.
+api/_lib/places.js         Google Places (API New): Text Search + Place
+                           Details, mapeo a la forma pública de Google,
+                           deduplicación contra talleres con la app.
 api/_lib/store.js          Adaptador de datos: archivo JSON local (dev)
                            o Supabase (producción). Misma interfaz.
 api/_lib/auth.js           Contraseñas con scrypt + token de sesión HMAC.
 api/_lib/focos.js          Los 10 foquitos del tablero + especialista.
-api/_lib/seed.js           6 talleres de ejemplo (3 con app + 3 de Google).
+api/_lib/seed.js           Configuración de incidentes (NO datos de
+                           ejemplo: los talleres de ejemplo se eliminaron).
 public/index.html          La app (una sola página): registro, inicio,
                            datos, resultados, ficha, foquito, confirmación,
                            panel del taller, notificaciones, mis datos.
@@ -40,9 +46,12 @@ public/icon-192.png        Icono PWA (192).
 public/icon-512.png        Icono PWA (512).
 public/manifest.json       Manifiesto PWA (nombre TallerYa, fondo negro).
 sql/schema.sql             Esquema completo para Supabase (proyecto nuevo).
-sql/seed.sql               Los 3 talleres de Google de ejemplo.
-test/                      22 pruebas (node:test): auth, orden de
-                           resultados, foquitos y flujo completo.
+sql/seed.sql               VACÍO (los datos de ejemplo se eliminaron).
+sql/quitar-talleres-ejemplo.sql  DELETE FROM google_shops + verificación.
+                           Corre en Supabase → SQL Editor (ver abajo).
+test/                      38 pruebas (node:test): auth, orden de
+                           resultados, foquitos, flujo completo y Google
+                           Places (con el fetch simulado, nunca la API real).
 ```
 
 ### Flujo del conductor
@@ -95,8 +104,11 @@ test/                      22 pruebas (node:test): auth, orden de
   taller, pero el diagnóstico lo hace el usuario picando los foquitos.
   La lectura con IA (Gemini, como la lectura de dorsales de OnlyClick)
   queda para después.
-- Los talleres “De Google” son datos de ejemplo; la integración real con
-  Google Places queda para después.
+- Los talleres “De Google” son REALES: vienen de Google Places
+  (ver "Google Places" abajo). Los 3 de ejemplo se eliminaron del
+  código y de la base (sql/quitar-talleres-ejemplo.sql). Sin llave de
+  Google, la búsqueda muestra solo los talleres con la app y avisa
+  con una línea corta; nunca muestra datos inventados.
 
 ## Cómo correrlo en local
 
@@ -121,6 +133,8 @@ reinicio invalida las sesiones). Los datos se guardan en `./data/db.json`
 | `TALLERYA_DATA_DIR` | Dónde guarda `db.json` en local | No |
 | `SUPABASE_URL` | URL del proyecto Supabase (producción) | Sí, en producción |
 | `SUPABASE_SERVICE_ROLE_KEY` | Llave service_role (producción) | Sí, en producción |
+| `GOOGLE_PLACES_API_KEY` | Llave de Google Places (API New) para los talleres reales de Google | No (sin ella solo salen los talleres con la app) |
+| `PLACES_TIMEOUT_MS` | Timeout de Google Places en ms (por defecto 8000; solo para pruebas) | No |
 
 > ⚠️ **Nunca pongas claves ni contraseñas en el código ni en el chat.**
 > Solo en variables de entorno de Vercel (o en la terminal local).
@@ -128,84 +142,129 @@ reinicio invalida las sesiones). Los datos se guardan en `./data/db.json`
 ## Pruebas
 
 ```bash
-npm test            # 22 pruebas, todas verdes
+npm test            # 38 pruebas, todas verdes
 node --check server.js public/app.js api/_lib/*.js
 ```
 
 Qué cubren: hash/verificación de contraseña y tokens; orden de
 resultados (app primero, plan, rating, distancia, GPS real); los 10
-foquitos y su especialista; y el flujo completo con el adaptador de
+foquitos y su especialista; el flujo completo con el adaptador de
 archivo: registro driver/taller, perfil con 3 carros (el 4.º se rechaza),
 aprobación por el dueño, búsqueda antes/después de aprobar, aviso al
 taller + notificación + WhatsApp, panel (servicios, ofertas, perfil,
-pausa), foto visible solo para conductor y taller, stats.
+pausa), foto visible solo para conductor y taller, stats; y Google
+Places: mapeo de la respuesta de la API, teléfono a 10 dígitos, cerrado
+permanente fuera, timeout a 8 s, deduplicación contra la app, límite de
+10 por búsqueda, detalle por Place Details, y los casos sin llave y con
+Google caído (solo app + `googleDisponible: false`). El fetch de Google
+se simula en los tests — nunca se llama a la API real.
 
 **Prueba de humo manual (ya hecha en local, 2026-11-19):** servidor
-arrancado con `AUTH_SECRET` de prueba: registro driver → guardar perfil
-con carro + seguro → búsqueda “choque” (solo Google antes de aprobar) →
-registro taller → aprobación por el dueño → búsqueda (taller con app
-primero) → aviso → panel con 1 solicitud, 1 no leída, stats con 1 aviso
-→ notificación en la campanita. Todo funcionó.
+arrancado con `AUTH_SECRET` de prueba: registro del dueño → búsqueda
+"choque" sin llave: 0 resultados + `googleDisponible: false` → la
+página sirve con el aviso de Google. Todo funcionó.
 
-## Despliegue (pasos exactos, para hacer después)
+## Google Places (talleres reales)
 
-### 1. GitHub (repo nuevo, separado de OnlyClick)
-1. En github.com, crear repositorio **público o privado** llamado
-   `tallerya` (cuenta `dustsince2026-oss`, la misma de OnlyClick).
-2. Subir todo el contenido de `~/workspace/tallerya-v1/` a la rama `main`
-   (sin la carpeta `data/` — está en `.gitignore`).
-3. Verificar que `server.js` quedó en la **raíz** del repo (Vercel lo
-   usa como entrypoint, igual que OnlyClick) y que `vercel.json` también
-   quedó en la raíz — SIN `vercel.json` Vercel despliega solo archivos
-   estáticos y las rutas `/api/*` dan 404 (pasó en el primer deploy
-   2026-11-19: la página cargaba pero la API no respondía). OJO: NO
-   copiar tal cual el vercel.json de OnlyClick: su bloque
-   `"functions":{"api/**/*.js":...}` exige que existan archivos de
-   función en api/ y TallerYa solo tiene api/_lib/ — el build falla con
-   `unused_function` (pasó 2026-11-19 ~16:29). El vercel.json de
-   TallerYa lleva SOLO el rewrite, sin bloque functions.
+La búsqueda muestra **primero los talleres registrados en la app**
+(por plan, luego calificación, luego distancia) y **después los
+talleres REALES de Google** (por distancia, máximo 10 por búsqueda).
+Los 3 talleres de ejemplo ya no existen en ningún lado: ni en el
+código (`api/_lib/seed.js` ya no los tiene), ni en el adaptador local
+(`store.js` ya no siembra nada), ni en la base (ver limpieza abajo).
 
-### 2. Supabase (proyecto nuevo, separado de OnlyClick)
-1. En supabase.com, crear proyecto nuevo llamado **TallerYa**.
-2. En **SQL Editor → New query**, pegar y correr `sql/schema.sql`
-   (crea las 9 tablas + índices).
-3. En otra query, pegar y correr `sql/seed.sql` (3 talleres de Google).
-4. En **Storage → Create bucket**: nombre `fotos`, **privado**
-   (las fotos las sirve el backend con verificación de acceso).
-5. Copiar de **Settings → API**: `Project URL` y la llave
-   `service_role` (la secreta, no la `anon`).
+### Cómo funciona
+- `api/_lib/places.js` llama a la API **Places (New)** de Google:
+  Text Search (`POST /v1/places:searchText`) para buscar y Place
+  Details (`GET /v1/places/{placeId}`) para la ficha. Timeout de 8 s.
+- La pregunta a Google depende del incidente: `choque` → "hojalatería
+  y pintura en Ensenada", `noarranca`/`otro`/`foquito` → "taller
+  mecánico en Ensenada", `grua` → "grúas en Ensenada", `electrico` →
+  "taller eléctrico automotriz en Ensenada". Con GPS del conductor se
+  manda un círculo de 15 km como `locationBias`.
+- Cada lugar se mapea a la misma forma pública que un taller con la
+  app (`id: 'places:' + placeId`, `source: 'google'`, `enApp: false`,
+  nombre, dirección, teléfono local de 10 dígitos, calificación,
+  opiniones, horario de hoy, distancia real). Los cerrados
+  permanentemente no salen.
+- **Deduplicación:** si un lugar de Google tiene el mismo nombre que
+  un taller con la app y está a menos de ~200 m (o no hay coordenadas
+  para comparar), no se repite: el taller con la app ya está primero.
+- **Sin llave o con Google caído:** la búsqueda devuelve solo los
+  talleres con la app y `googleDisponible: false`; el frente muestra
+  la línea "Los talleres de Google se activan cuando se agregue la
+  llave." Nunca se muestran datos de ejemplo.
+- La ficha de un taller de Google se pinta con los datos que ya trae
+  la búsqueda (sin otra llamada); el detalle por Place Details
+  (`/api/shop-get?source=google&id=places:...`) queda para cuando no
+  hay resultado guardado.
 
-### 3. Vercel (proyecto nuevo)
-1. En vercel.com, **Add New → Project → Import** el repo `tallerya`.
-2. Framework: **Other** (no hay build; `server.js` es el entrypoint).
-3. Variables de entorno (Settings → Environment Variables):
-   - `SUPABASE_URL` = la URL del paso 2.5
-   - `SUPABASE_SERVICE_ROLE_KEY` = la llave service_role
-   - `AUTH_SECRET` = una frase larga al azar (generarla en ese momento)
-   - `OWNER_EMAIL` = `dust.since2026@gmail.com`
-4. Deploy. El sitio queda en `https://tallerya.vercel.app` (o el
-   dominio que se le asigne después; el dominio `tallerya.com.mx`
-   se compra aparte en Cloudflare, como se hizo con OnlyClick,
-   ~$17 USD/año — **no es necesario para que la app funcione**).
+### La llave (la crea Orlan, nunca va en el chat ni en el código)
+1. En Google Cloud Console (cuenta dust.since2026@gmail.com), crear o
+   elegir el proyecto y habilitar **Places API (New)**.
+2. En **APIs y servicios → Credenciales → Crear credenciales → Clave
+   de API** (restringirla a Places API si se puede).
+3. En Vercel → proyecto `tallerya` → **Settings → Environment
+   Variables** → agregar `GOOGLE_PLACES_API_KEY` = la clave, solo para
+   **Production** → **Redeploy** (o el próximo deploy la toma).
+4. Sin redeploy no cambia nada: la variable se lee al arrancar.
+
+### Costo (aproximado, confirmar en Cloud Console)
+Google Maps Platform da **$200 USD de crédito al mes** por cuenta de
+facturación. Text Search cuesta ~**$32 USD por cada 1,000 búsquedas**,
+así que el crédito cubre ~**6,250 búsquedas al mes**; Place Details
+cuesta ~$17 USD por 1,000. Para el arranque en Ensenada sobra. Si el
+crédito se acaba, Google cobra lo que sigue según su lista de precios
+— revisar en Cloud Console → Facturación antes de que llegue el caso.
+
+## Despliegue de esta versión (la app YA está en vivo)
+
+La app vive en https://tallerya-beryl.vercel.app/ (repo
+dustsince2026-oss/tallerya, Vercel proyecto "tallerya", Supabase
+proyecto "TallerYa"). Esta versión solo hay que subirla encima:
+
+### 1. Limpiar los talleres de ejemplo en Supabase (PRIMERO)
+En Supabase → proyecto TallerYa → **SQL Editor → New query**, pegar
+y correr `sql/quitar-talleres-ejemplo.sql` (`DELETE FROM google_shops;`
++ verificación). La verificación debe dar **0**. Sin este paso, la
+tabla vieja queda con los 3 de ejemplo (el código nuevo ya no la lee,
+pero mejor vacía).
+
+### 2. Subir el código a GitHub (rama main)
+Subir el contenido de `~/workspace/tallerya-google-places/` (sin
+`data/` — está en `.gitignore`). Archivos nuevos o cambiados:
+`api/_lib/places.js` (nuevo), `api/_lib/handlers.js`, `api/_lib/store.js`,
+`api/_lib/seed.js`, `public/app.js`, `public/index.html`,
+`sql/seed.sql`, `sql/quitar-talleres-ejemplo.sql` (nuevo),
+`test/handlers.test.js`, `test/places.test.js` (nuevo), `README.md`.
+Cada subida dispara el deploy automático en Vercel (~1 min).
+Recordar (lección del primer deploy 2026-11-19): el entrypoint en
+vivo es `server.js` (preset de Vercel "Node"); `vercel.json` lleva
+SOLO el rewrite, sin bloque `functions`.
+
+### 3. Poner la llave en Vercel (ver "Google Places" arriba)
+`GOOGLE_PLACES_API_KEY` en Production + Redeploy. Sin la llave la app
+sigue funcionando (solo talleres con la app + el aviso).
 
 ### 4. Verificación después del deploy
 1. Abrir la URL → debe verse la pantalla de registro.
-2. Registrar un conductor de prueba → guardar 1 carro → buscar
-   “Choqué” → sale solo Hojalatería Los Pinos (el buscador filtra por tipo
-   de incidente: choque = hojalatería; grúa = Grúas Ensenada Express;
-   “No arranca / descompuesto” → los 3 talleres de ejemplo).
-3. Registrar un taller de prueba → **no** debe aparecer en búsquedas
+2. Buscar "Choqué" sin talleres registrados y **sin llave** → **0
+   resultados** + la línea "Los talleres de Google se activan cuando
+   se agregue la llave."
+3. Con la llave puesta → buscar "Choqué" → salen talleres REALES de
+   hojalatería de Ensenada (con nombre, dirección y teléfono reales);
+   buscar "Necesito grúa" → grúas reales.
+4. Registrar un taller de prueba → **no** debe aparecer en búsquedas
    hasta aprobarlo.
-4. En Supabase (Table Editor → users) poner `approved = true` al
-   taller (o usar el endpoint `/api/workshop-approve` con la sesión
-   del dueño) → buscar otra vez → el taller con la app sale primero.
-5. Avisar al taller desde el conductor → revisar que llegue la
+5. Aprobarlo (en Supabase poner `approved = true` al usuario, o usar
+   `/api/workshop-approve` con la sesión del dueño) → buscar otra vez
+   → el taller con la app sale PRIMERO, antes que los de Google.
+6. Avisar al taller desde el conductor → revisar que llegue la
    solicitud al panel y la notificación.
-6. Revisar en Vercel → Logs que no haya errores 500.
+7. Revisar en Vercel → Logs que no haya errores 500.
 
-### Pendiente para después del v1 (no incluido)
+### Pendiente para después (no incluido)
 - Lectura del foquito por foto con IA (Gemini).
-- Google Places real en vez de la semilla (reemplazar `google_shops`).
 - Suscripciones con cobro real (Clip, como OnlyClick).
 - Publicación en Play Store (PWA → TWA, cuenta de desarrollador
   $25 USD por única vez, como se decidió en el plan).
