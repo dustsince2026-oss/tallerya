@@ -158,6 +158,11 @@
   /* Tarjetas y botones con más aire y sombra suave */
   .card { box-shadow: 0 6px 18px rgba(0,0,0,.35); border-radius: 18px; }
   button.big { box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  /* Recogida de la grúa: dos opciones (ubicación actual / manual) */
+  #gruaOrigenOpciones { display: flex; gap: 8px; margin: 6px 0 8px; }
+  #gruaOrigenOpciones button { flex: 1; padding: 10px 6px; border-radius: 12px; border: 1px solid #243850; background: #12202f; color: #e8eef4; font-size: 14px; font-weight: 700; cursor: pointer; }
+  #gruaOrigenOpciones button.sel { background: #f5b301; color: #1a1a1a; border-color: #f5b301; }
+  #dRecogida:disabled { color: #c8d3de; opacity: 1; }
   /* Carrusel del inicio: 3 imágenes que cambian solas, con frase */
   .carrusel { margin-top: 18px; overflow: hidden; border-radius: 16px; }
   .carrusel-track { display: flex; transition: transform .5s ease; }
@@ -324,7 +329,11 @@
     <p class="muted" id="locLine" style="margin-top:10px;">Todavía no tenemos tu ubicación.</p>
     <div id="gruaBox" style="display:none;">
       <label>¿Dónde se recoge el vehículo?</label>
-      <input id="dRecogida" placeholder="Mi ubicación actual">
+      <div id="gruaOrigenOpciones">
+        <button id="btnOrigenGps" class="sel">📍 Mi ubicación actual</button>
+        <button id="btnOrigenManual">✏️ Escribir la dirección</button>
+      </div>
+      <input id="dRecogida" placeholder="Mi ubicación actual" disabled>
       <label>¿Adónde se lleva el vehículo?</label>
       <input id="dDestino" placeholder="Ej. Taller El Toro, Av. Reforma, Ensenada">
       <p class="muted" id="gruaDistancia" style="margin-top:8px;"></p>
