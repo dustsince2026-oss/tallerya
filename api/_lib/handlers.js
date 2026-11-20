@@ -2,6 +2,7 @@
 // TallerYa — lógica de negocio. Todas las rutas /api/* pasan por dispatch()
 // desde server.js (que es el entrypoint en vivo en Vercel, igual que en
 // OnlyClick: api/*.js NO se ejecuta en producción).
+const crypto = require('crypto');
 const { getStore } = require('./store');
 const { hashPassword, verifyPassword, signToken, verifyToken, publicUser } = require('./auth');
 const { FOCOS, specialistForFocos } = require('./focos');
@@ -120,11 +121,24 @@ async function register(store, b) {
   if (await store.findUserByEmail(email)) throw err(400, 'Ese correo ya tiene cuenta. Inicia sesión.');
   const tallerNombre = role === 'workshop' ? String(b.tallerNombre || name).trim() : '';
   if (role === 'workshop' && !tallerNombre) throw err(400, 'Escribe el nombre del taller.');
+  // Registro de taller SOLO con código de invitación (decisión de Orlan
+  // 2026-11-19): el dueño va en persona al taller, verifica que existe
+  // y le entrega el código al encargado. Sin código no hay registro.
+  // El mismo mensaje para los tres casos (falta / no existe / ya se usó)
+  // para no dar pistas. El conductor no necesita código.
+  let invite = null;
+  if (role === 'workshop') {
+    const inviteCode = String(b.inviteCode || '').trim().toUpperCase();
+    if (!inviteCode) throw err(400, 'Ese código no es válido.');
+    invite = await store.findInviteCodeByCode(inviteCode);
+    if (!invite || invite.usedBy) throw err(400, 'Ese código no es válido.');
+  }
   const owner = isOwnerEmail(email);
   const user = await store.createUser({
     name, email, passwordHash: hashPassword(password), role,
     phone: String(b.phone || '').trim().slice(0, 20),
-    isOwner: owner, approved: role === 'driver' ? true : owner,
+    // Con código el taller ya está verificado en persona: entra aprobado.
+    isOwner: owner, approved: true,
   });
   let workshop = null;
   if (role === 'workshop') {
@@ -136,6 +150,10 @@ async function register(store, b) {
       plan: ['Basico', 'Destacado', 'Premium'].includes(b.plan) ? b.plan : 'Basico',
       horario: '', direccion: '', servicios: '', lat: null, lng: null, distKm: 0,
     });
+    // Marcar el código como usado ANTES de devolver éxito. Si falla
+    // (otro registro lo usó al mismo tiempo), el registro falla también.
+    const marked = await store.markInviteCodeUsed(invite.code, user.id);
+    if (!marked) throw err(400, 'Ese código no es válido.');
   }
   return { status: 201, data: { user: publicUser(user), workshop: workshop ? { id: workshop.id, nombre: workshop.nombre } : null, token: signToken(user.id) } };
 }
@@ -441,6 +459,62 @@ async function approveWorkshop(store, user, b) {
   return { status: 200, data: { user: publicUser(updated) } };
 }
 
+// ---------------- Códigos de invitación para talleres (dueño) ----------------
+// Formato TALLER-XXXXXX, 6 caracteres al azar (sin 0/O/1/I/L para no
+// confundirlos), nunca secuencial. Mismo alfabeto que los códigos de
+// descuento de OnlyClick.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+function genInviteCode() {
+  const bytes = crypto.randomBytes(6);
+  let code = 'TALLER-';
+  for (let i = 0; i < 6; i++) code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
+  return code;
+}
+function publicInviteCode(c, usedByName) {
+  if (!c) return null;
+  return {
+    code: c.code, note: c.note || '', createdAt: c.createdAt,
+    usado: !!c.usedBy, usedBy: c.usedBy || null,
+    usedByName: usedByName || null, usedAt: c.usedAt || null,
+  };
+}
+async function createInviteCode(store, user, b) {
+  requireOwner(user);
+  const note = String(b.note || '').trim().slice(0, 80);
+  let code = null;
+  for (let i = 0; i < 10; i++) {
+    const cand = genInviteCode();
+    if (!(await store.findInviteCodeByCode(cand))) { code = cand; break; }
+  }
+  if (!code) throw err(500, 'No se pudo generar el código. Intenta otra vez.');
+  const row = await store.createInviteCode({ code, note, createdBy: user.id });
+  return { status: 201, data: { codigo: publicInviteCode(row) } };
+}
+async function listInviteCodes(store, user) {
+  requireOwner(user);
+  const rows = await store.listInviteCodes();
+  const out = [];
+  for (const r of rows) {
+    let usedByName = null;
+    if (r.usedBy) {
+      const u = await store.findUserById(r.usedBy);
+      usedByName = u ? u.name : null;
+    }
+    out.push(publicInviteCode(r, usedByName));
+  }
+  return { status: 200, data: { codigos: out } };
+}
+async function deactivateInviteCode(store, user, b) {
+  requireOwner(user);
+  const code = String(b.code || '').trim().toUpperCase();
+  const row = await store.findInviteCodeByCode(code);
+  if (!row) throw err(404, 'Código no encontrado.');
+  if (row.usedBy) throw err(400, 'Ese código ya se usó.');
+  const ok = await store.deactivateInviteCode(code);
+  if (!ok) throw err(404, 'Código no encontrado.');
+  return { status: 200, data: { ok: true } };
+}
+
 // ---------------- Foto adjunta a una solicitud ----------------
 async function fotoFile(store, user, query) {
   const key = String(query.key || '');
@@ -487,6 +561,9 @@ async function dispatch(route, req) {
     case 'mark-notifications-read': return markNotificationsRead(store, user);
     case 'track-event': return trackEvent(store, b);
     case 'approve-workshop': return approveWorkshop(store, user, b);
+    case 'invite-code-create': return createInviteCode(store, user, b);
+    case 'invite-codes-list': return listInviteCodes(store, user);
+    case 'invite-code-deactivate': return deactivateInviteCode(store, user, b);
     case 'foto-file': return fotoFile(store, user, req.query || {});
     default: throw err(404, 'Ruta no encontrada.');
   }
