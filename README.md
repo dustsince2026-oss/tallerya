@@ -158,8 +158,12 @@ primero) → aviso → panel con 1 solicitud, 1 no leída, stats con 1 aviso
    usa como entrypoint, igual que OnlyClick) y que `vercel.json` también
    quedó en la raíz — SIN `vercel.json` Vercel despliega solo archivos
    estáticos y las rutas `/api/*` dan 404 (pasó en el primer deploy
-   2026-11-19: la página cargaba pero la API no respondía; se arregló
-   subiendo `vercel.json` y redesplegando).
+   2026-11-19: la página cargaba pero la API no respondía). OJO: NO
+   copiar tal cual el vercel.json de OnlyClick: su bloque
+   `"functions":{"api/**/*.js":...}` exige que existan archivos de
+   función en api/ y TallerYa solo tiene api/_lib/ — el build falla con
+   `unused_function` (pasó 2026-11-19 ~16:29). El vercel.json de
+   TallerYa lleva SOLO el rewrite, sin bloque functions.
 
 ### 2. Supabase (proyecto nuevo, separado de OnlyClick)
 1. En supabase.com, crear proyecto nuevo llamado **TallerYa**.
