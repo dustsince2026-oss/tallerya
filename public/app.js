@@ -14,6 +14,9 @@ let gruaKm = null;       // km del traslado de la grúa (recogida → destino)
 let gruaDestino = '';    // adónde se lleva el vehículo (texto del conductor)
 let gruaOrigen = 'gps';  // 'gps' = mi ubicación actual | 'manual' = dirección escrita
 let gruaOrigenTxt = 'Mi ubicación actual'; // dirección que se muestra y se manda al taller
+let domicilioOrigen = 'gps'; // igual que la grúa: 'gps' = donde estás | 'manual' = domicilio escrito a mano
+let domicilioTxt = 'Mi ubicación actual'; // domicilio del servicio a domicilio
+let domicilioLat = null, domicilioLng = null; // coordenadas del domicilio (para buscar talleres cerca de ahí)
 let results = [];
 let currentShop = null;
 let carroElegido = null;
@@ -281,9 +284,68 @@ function irADatos(inc) {
     document.getElementById('gruaDistancia').textContent = '';
     setOrigenGrua('gps');
   }
+  // Servicio a domicilio (presupuesto o asistencia en casa): se pide el
+  // domicilio, porque la persona puede no estar en su casa cuando lo
+  // pide — igual que la recogida de la grúa, se puede escribir a mano.
+  document.getElementById('domicilioBox').style.display = esDomicilio() ? 'block' : 'none';
+  if (esDomicilio()) {
+    domicilioLat = null; domicilioLng = null;
+    setOrigenDomicilio('gps');
+  }
   renderCarroPicker();
   show('p-datos');
 }
+
+// ¿El modo elegido es un servicio a domicilio? (choque, mecánico o
+// llantera a domicilio). Solo en esos casos se pide el domicilio.
+function esDomicilio() {
+  return (incident && incident.k === 'choque' && choqueModo && choqueModo.k === 'domicilio')
+    || (incident && incident.k === 'noarranca' && mecanicoModo && mecanicoModo.k === 'domicilio')
+    || (incident && incident.k === 'llantera' && llanteraModo && llanteraModo.k === 'domicilio');
+}
+
+// Domicilio del servicio: igual que la recogida de la grúa. Por
+// defecto es tu ubicación actual (se llena sola con tu dirección);
+// con "Escribir la dirección a mano" se escribe el domicilio donde
+// quieres el servicio cuando no estás en tu casa.
+async function setOrigenDomicilio(modo) {
+  domicilioOrigen = modo;
+  const input = document.getElementById('dDomicilio');
+  if (modo === 'manual') {
+    input.disabled = false;
+    input.value = '';
+    input.placeholder = 'Ej. Av. Reforma 123, Ensenada';
+    input.focus();
+    return;
+  }
+  input.disabled = true;
+  input.placeholder = 'Mi ubicación actual';
+  domicilioTxt = 'Mi ubicación actual';
+  if (lat == null || lng == null) { input.value = 'Mi ubicación actual'; return; }
+  input.value = 'Buscando tu dirección…';
+  try {
+    const r = await api('/api/reverse-geocode', { method: 'POST', body: { lat, lng } });
+    input.value = r.direccion;
+    domicilioTxt = r.direccion;
+  } catch (e) {
+    input.value = 'Mi ubicación actual';
+  }
+}
+
+// Domicilio que se manda al taller: lo que está en el cuadro (la
+// dirección escrita a mano o la que se llenó con tu ubicación).
+function domicilioTexto() {
+  const box = document.getElementById('domicilioBox');
+  if (box && box.style.display !== 'none') {
+    const v = document.getElementById('dDomicilio').value.trim();
+    if (v) return v;
+  }
+  return domicilioTxt;
+}
+
+// Domicilio: el enlace "Escribir la dirección a mano" se ata aquí
+// (no con onclick en el HTML, que jsdom no ejecuta en las pruebas).
+document.getElementById('btnDomicilioManual').onclick = () => setOrigenDomicilio('manual');
 
 function pickChoqueModo(modo) {
   choqueModo = modo;
@@ -476,6 +538,9 @@ function useLocation() {
       // llenaba si el modo seguía en 'gps', así que borrarlo y volver
       // a picar el botón ya no lo ponía (reporte de Orlan 2026-11-20).
       if (incident && incident.k === 'grua') setOrigenGrua('gps');
+      // Igual para el domicilio: si el servicio es a domicilio, el
+      // botón vuelve a poner tu ubicación en el cuadro del domicilio.
+      if (esDomicilio()) setOrigenDomicilio('gps');
       // Mostrar la dirección escrita abajo del botón para que el
       // conductor se asegure de que sí se leyó su ubicación (pide
       // Orlan 2026-11-20). La pantalla de datos es la misma para
@@ -620,7 +685,26 @@ async function searchShops() {
   }
   const q = new URLSearchParams({ incident: incident.k });
   if (incident.k === 'foquito' && incident.tipo) q.set('tipo', incident.tipo);
-  if (lat != null && lng != null) { q.set('lat', lat); q.set('lng', lng); }
+  // A domicilio, los talleres se buscan cerca DEL DOMICILIO, no de
+  // donde estás tú (puedes pedirlo desde el trabajo o la calle). Si
+  // el domicilio se escribió a mano, se geocodifica para buscar con
+  // sus coordenadas; si es tu ubicación actual, son tus coordenadas.
+  let qLat = lat, qLng = lng;
+  if (esDomicilio()) {
+    if (domicilioOrigen === 'manual') {
+      const dir = document.getElementById('dDomicilio').value.trim();
+      if (!dir) { toast('Escribe el domicilio donde es el servicio.'); return; }
+      try {
+        const g = await api('/api/geocode', { method: 'POST', body: { direccion: dir } });
+        qLat = g.lat; qLng = g.lng;
+        domicilioLat = g.lat; domicilioLng = g.lng;
+        domicilioTxt = g.direccion;
+      } catch (e) { toast(e.message); return; }
+    } else {
+      domicilioLat = lat; domicilioLng = lng;
+    }
+  }
+  if (qLat != null && qLng != null) { q.set('lat', qLat); q.set('lng', qLng); }
   try {
     const d = await api('/api/search?' + q.toString());
     results = d.shops;
@@ -851,12 +935,20 @@ async function notifyShop(i) {
     if (gruaDestino) descripcion += ' · Llevar a: ' + gruaDestino;
     if (gruaKm != null) descripcion += ' (' + gruaKm.toFixed(1) + ' km)';
   }
+  // A domicilio, el taller necesita saber DÓNDE es el servicio: el
+  // domicilio va en el aviso (si la persona no está en su casa, es la
+  // dirección que escribió a mano).
+  if (esDomicilio()) descripcion += ' · Domicilio: ' + domicilioTexto();
   try {
     const d = await api('/api/notify', {
       method: 'POST',
       body: {
         workshopId: s.id, incident: incident ? incident.k : 'otro',
-        descripcion, carro, lat, lng,
+        descripcion, carro,
+        // A domicilio, las coordenadas son las del domicilio (no las
+        // de donde está la persona), para que el taller vea adónde va.
+        lat: (esDomicilio() && domicilioLat != null) ? domicilioLat : lat,
+        lng: (esDomicilio() && domicilioLng != null) ? domicilioLng : lng,
         fotoBase64: fotoDataUrl || undefined, fotoMime: undefined,
       },
     });
