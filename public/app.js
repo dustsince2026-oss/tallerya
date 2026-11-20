@@ -54,6 +54,10 @@ function toast(msg) {
 function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
+function qid(id) {
+  // Un id dentro de un onclick="..." (los de Google son 'places:ChIJ...').
+  return "'" + String(id).replace(/'/g, "\\'") + "'";
+}
 function stars(r) {
   const full = Math.round(r || 0); let s = '';
   for (let i = 0; i < 5; i++) s += (i < full) ? '★' : '☆';
@@ -373,6 +377,9 @@ async function searchShops() {
   try {
     const d = await api('/api/search?' + q.toString());
     results = d.shops;
+    // Sin llave de Google Places (o si Google falló), solo salieron los
+    // talleres con la app: se avisa con una línea corta.
+    document.getElementById('googleNote').style.display = d.googleDisponible === false ? 'block' : 'none';
     document.getElementById('resTitle').textContent = d.resTitle;
     let desc = '';
     if (incident.k === 'otro') {
@@ -401,7 +408,7 @@ async function searchShops() {
         '📍 ' + s.distKm.toFixed(1) + ' km · ' + esc(s.zona) + '<br>' +
         '<span class="open">● Abierto ahora</span> · ' + esc(s.horario) + '</div>' +
         '<div class="actions">' +
-          '<a class="call" href="tel:' + esc(s.tel) + '" onclick="trackLlamada(' + s.id + ', \'' + s.source + '\')">📞 Llamar</a>' +
+          '<a class="call" href="tel:' + esc(s.tel) + '" onclick="trackLlamada(' + qid(s.id) + ', \'' + s.source + '\')">📞 Llamar</a>' +
           '<a class="wa" href="https://wa.me/52' + esc(s.tel.replace(/\D/g, '')) + '" target="_blank" rel="noopener">💬 WhatsApp</a>' +
         '</div>' +
         (s.enApp
@@ -424,7 +431,13 @@ async function openShop(i) {
   currentShop = s;
   try { if (s.source === 'app') await api('/api/track-event', { method: 'POST', body: { workshopId: s.id, kind: 'vista' } }); } catch (_) {}
   try {
-    const d = await api('/api/shop-get?source=' + s.source + '&id=' + s.id);
+    // Los talleres de Google ya vienen completos en los resultados: la
+    // ficha se pinta con esos datos, sin otra llamada. (El detalle por
+    // Place Details, /api/shop-get?source=google&id=places:..., queda
+    // para cuando no hay resultado guardado.)
+    const d = s.source === 'google'
+      ? { shop: s, servicios: [], reviews: [] }
+      : await api('/api/shop-get?source=' + s.source + '&id=' + encodeURIComponent(s.id));
     const sh = d.shop;
     let html =
       '<h2>' + esc(sh.nombre) + (sh.enApp ? ' <span class="badge prem">✓ En la app</span>' : ' <span class="badge">De Google</span>') + '</h2>' +
@@ -432,7 +445,7 @@ async function openShop(i) {
       '<div class="meta"><span class="stars">' + stars(sh.rating) + '</span> ' + sh.rating + ' (' + sh.opiniones + ' opiniones)<br>' +
       '📍 ' + sh.distKm.toFixed(1) + ' km · ' + esc(sh.dir) + '<br>' +
       '<span class="open">● Abierto ahora</span> · ' + esc(sh.horario) + '<br>' +
-      '🛠 ' + esc(sh.servicios) + '</div>';
+      (sh.servicios ? '🛠 ' + esc(sh.servicios) : '') + '</div>';
     if (sh.ofertas && sh.ofertas.length) {
       html += '<h2 style="margin-top:22px;">Ofertas</h2>';
       sh.ofertas.forEach(o => {
@@ -446,7 +459,7 @@ async function openShop(i) {
       });
     }
     html += '<div class="actions">' +
-      '<a class="call" href="tel:' + esc(sh.tel) + '" onclick="trackLlamada(' + sh.id + ', \'' + sh.source + '\')">📞 Llamar</a>' +
+      '<a class="call" href="tel:' + esc(sh.tel) + '" onclick="trackLlamada(' + qid(sh.id) + ', \'' + sh.source + '\')">📞 Llamar</a>' +
       '<a class="wa" href="https://wa.me/52' + esc(sh.tel.replace(/\D/g, '')) + '" target="_blank" rel="noopener">💬 WhatsApp</a>' +
       '</div>' +
       (sh.enApp
