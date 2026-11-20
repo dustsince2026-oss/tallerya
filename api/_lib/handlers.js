@@ -6,6 +6,7 @@ const { getStore } = require('./store');
 const { hashPassword, verifyPassword, signToken, verifyToken, publicUser } = require('./auth');
 const { FOCOS, specialistForFocos } = require('./focos');
 const { INCIDENT_TYPES, INCIDENT_LABELS, INCIDENT_COPY } = require('./seed');
+const { searchPlaces, getPlaceDetails, tipoForPlaces, dedupePlaces } = require('./places');
 
 function err(status, message) { const e = new Error(message); e.status = status; return e; }
 
@@ -95,17 +96,6 @@ function publicAppShop(w, ofertas) {
     ofertas: (ofertas || []).filter(o => o.activa).map(o => ({ titulo: o.titulo, precio: o.precio, vigencia: o.vigencia })),
   };
 }
-function publicGoogleShop(g) {
-  return {
-    id: g.id, source: 'google', enApp: false, nombre: g.nombre,
-    esp: g.esp, tipos: [g.tipo], zona: g.zona || '', dir: g.dir || '', tel: g.tel || '',
-    horario: g.horario || '', rating: Number(g.rating || 0), opiniones: g.opiniones || 0,
-    plan: 'Básico', distKm: Number(g.distKm || 0), lat: g.lat, lng: g.lng,
-    abierto: true, servicios: g.servicios || '', tieneGrua: g.tipo === 'grua', aDomicilio: false,
-    ofertas: [],
-  };
-}
-
 function validateCarros(carros) {
   if (!Array.isArray(carros)) throw err(400, 'Los carros deben ser una lista.');
   if (carros.length > 3) throw err(400, 'Solo se pueden guardar hasta 3 carros.');
@@ -205,21 +195,49 @@ async function search(store, query) {
     const ofertas = await store.listOffers(w.id);
     appShops.push(publicAppShop(w, ofertas));
   }
-  const googleAll = await store.listGoogleShops();
-  const googleShops = googleAll.filter(g => shopMatchesTipo(g, tipos)).map(publicGoogleShop);
+  // Talleres reales de Google Places (api/_lib/places.js). Sin llave, o
+  // si Google falla, solo salen los talleres con la app y el frente
+  // muestra el aviso (googleDisponible: false). Nunca datos de ejemplo.
+  let googleShops = [];
+  let googleDisponible = false;
+  const placesKey = (process.env.GOOGLE_PLACES_API_KEY || '').trim();
+  if (placesKey) {
+    try {
+      const places = await searchPlaces({ tipo: tipoForPlaces(tipos), lat, lng, key: placesKey });
+      googleShops = dedupePlaces(places, appShops).slice(0, 10);
+      googleDisponible = true;
+    } catch (_) {
+      googleShops = [];
+      googleDisponible = false;
+    }
+  }
   const shops = orderShops(appShops, googleShops, lat, lng);
   const copy = INCIDENT_COPY[incident] || INCIDENT_COPY.otro;
-  return { status: 200, data: { shops, incident, resTitle: copy.resTitle, total: shops.length, appCount: appShops.length } };
+  return { status: 200, data: { shops, incident, resTitle: copy.resTitle, total: shops.length, appCount: appShops.length, googleDisponible } };
 }
 
 async function getShop(store, query) {
   const source = String(query.source || 'app');
-  const id = Number(query.id);
   if (source === 'google') {
-    const g = (await store.listGoogleShops()).find(x => x.id === id);
-    if (!g) throw err(404, 'Taller no encontrado.');
-    return { status: 200, data: { shop: publicGoogleShop(g), reviews: g.reviews || [] } };
+    // Los talleres de Google se identifican por su place id ('places:...').
+    const id = String(query.id || '');
+    if (!id.startsWith('places:')) throw err(404, 'Taller no encontrado.');
+    const placesKey = (process.env.GOOGLE_PLACES_API_KEY || '').trim();
+    if (!placesKey) throw err(404, 'Los talleres de Google se activan cuando se agregue la llave.');
+    const lat = query.lat != null && query.lat !== '' ? Number(query.lat) : null;
+    const lng = query.lng != null && query.lng !== '' ? Number(query.lng) : null;
+    let shop = null;
+    try {
+      shop = await getPlaceDetails(id.slice('places:'.length), {
+        key: placesKey, tipo: String(query.tipo || ''), lat, lng,
+      });
+    } catch (_) {
+      shop = null;
+    }
+    if (!shop) throw err(404, 'Taller no encontrado.');
+    return { status: 200, data: { shop, reviews: [] } };
   }
+  const id = Number(query.id);
   const w = await store.getWorkshop(id);
   if (!w) throw err(404, 'Taller no encontrado.');
   const u = await store.findUserById(w.userId);
