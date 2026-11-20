@@ -27,8 +27,8 @@ const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 function emptyDb() {
   return {
     users: [], driverProfiles: [], workshops: [], services: [], offers: [],
-    requests: [], notifications: [], events: [], googleShops: [],
-    seq: { user: 1, workshop: 1, service: 1, offer: 1, request: 1, notification: 1, event: 1, googleShop: 1 },
+    requests: [], notifications: [], events: [], googleShops: [], inviteCodes: [],
+    seq: { user: 1, workshop: 1, service: 1, offer: 1, request: 1, notification: 1, event: 1, googleShop: 1, inviteCode: 1 },
   };
 }
 function loadDb() {
@@ -204,6 +204,39 @@ const fileStore = {
     return [];
   },
 
+  // ---- Códigos de invitación para talleres ----
+  // Solo entran talleres verificados por el dueño en persona: él genera
+  // el código, lo entrega en el taller y el taller lo mete al registrarse.
+  // Un código sirve una sola vez. Ver sql/codigos-invitacion.sql.
+  async createInviteCode(c) {
+    const db = loadDb();
+    const row = {
+      id: nextId(db, 'inviteCode'), code: c.code, note: String(c.note || ''),
+      createdBy: c.createdBy != null ? Number(c.createdBy) : null,
+      usedBy: null, usedAt: null, createdAt: now(),
+    };
+    db.inviteCodes.push(row); saveDb(db); return { ...row };
+  },
+  async findInviteCodeByCode(code) {
+    return loadDb().inviteCodes.find(x => x.code === String(code)) || null;
+  },
+  async listInviteCodes() {
+    return loadDb().inviteCodes.slice().sort((a, b) => b.id - a.id);
+  },
+  async markInviteCodeUsed(code, userId) {
+    const db = loadDb();
+    const row = db.inviteCodes.find(x => x.code === String(code));
+    if (!row || row.usedBy) return null;
+    row.usedBy = Number(userId); row.usedAt = now();
+    saveDb(db); return { ...row };
+  },
+  async deactivateInviteCode(code) {
+    const db = loadDb();
+    const i = db.inviteCodes.findIndex(x => x.code === String(code));
+    if (i < 0 || db.inviteCodes[i].usedBy) return false;
+    db.inviteCodes.splice(i, 1); saveDb(db); return true;
+  },
+
   // ---- Fotos (opcionales, adjuntas a una solicitud) ----
   async savePhoto({ buffer, filename, mimeType }) {
     fs.mkdirSync(UPLOAD_DIR, { recursive: true });
@@ -257,6 +290,13 @@ function mapRequest(r) {
     id: r.id, driverId: r.driver_id, workshopId: r.workshop_id, incident: r.incident,
     descripcion: r.descripcion || '', carro: r.carro || null, lat: r.lat, lng: r.lng,
     fotoKey: r.foto_key || null, estado: r.estado, createdAt: r.created_at,
+  };
+}
+function mapInviteCode(r) {
+  if (!r) return null;
+  return {
+    id: r.id, code: r.code, note: r.note || '', createdBy: r.created_by,
+    usedBy: r.used_by, usedAt: r.used_at, createdAt: r.created_at,
   };
 }
 
@@ -446,6 +486,39 @@ const supabaseStore = {
       rating: Number(r.rating || 0), opiniones: r.opiniones || 0, plan: 'Básico', zona: r.zona || '',
       servicios: r.servicios || '', tel: r.telefono || '', dir: r.direccion || '', reviews: [],
     }));
+  },
+
+  // ---- Códigos de invitación para talleres ----
+  // Ver sql/codigos-invitacion.sql. Un código sirve una sola vez.
+  async createInviteCode(c) {
+    const { data, error } = await supabase().from('invite_codes').insert({
+      code: c.code, note: String(c.note || ''), created_by: c.createdBy != null ? Number(c.createdBy) : null,
+    }).select().single();
+    if (error) throw new Error(error.message);
+    return mapInviteCode(data);
+  },
+  async findInviteCodeByCode(code) {
+    const { data } = await supabase().from('invite_codes').select().eq('code', String(code)).maybeSingle();
+    return mapInviteCode(data);
+  },
+  async listInviteCodes() {
+    const { data } = await supabase().from('invite_codes').select().order('id', { ascending: false });
+    return (data || []).map(mapInviteCode);
+  },
+  async markInviteCodeUsed(code, userId) {
+    // El .is('used_by', null) hace que solo gane el primero si dos
+    // registros llegan al mismo tiempo con el mismo código.
+    const { data, error } = await supabase().from('invite_codes')
+      .update({ used_by: Number(userId), used_at: new Date().toISOString() })
+      .eq('code', String(code)).is('used_by', null).select().maybeSingle();
+    if (error || !data) return null;
+    return mapInviteCode(data);
+  },
+  async deactivateInviteCode(code) {
+    const { count, error } = await supabase().from('invite_codes')
+      .delete({ count: 'exact' }).eq('code', String(code)).is('used_by', null);
+    if (error) throw new Error(error.message);
+    return (count || 0) > 0;
   },
 
   async savePhoto({ buffer, filename, mimeType }) {
