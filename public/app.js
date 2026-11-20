@@ -30,23 +30,35 @@ let fotoDataUrl = null;   // foto opcional del daño (data URL, máx 2 MB)
 let focosSel = {};
 let FOCOS = [];
 
+/* ---------- Iconos Lucide (diseño nuevo) ---------- */
+// Dibuja los iconos <i data-lucide> del diseño nuevo. Con guarda: en las
+// pruebas (jsdom) no se carga el script de Lucide, así que no hace nada.
+function refreshIcons() {
+  if (window.lucide && window.lucide.createIcons) window.lucide.createIcons();
+}
+// Quita el emoji inicial de una etiqueta, si lo tiene. Las etiquetas
+// nuevas ya no llevan emoji (el icono es un <i data-lucide> aparte);
+// queda para las que sí lo traen, como '💡 Foquito del tablero'.
+function sinEmoji(s) {
+  return String(s || '').replace(/^[^\p{L}\p{N}]+/u, '');
+}
 const INCIDENTS = [
-  { k: 'choque', label: '🚗 Choqué', sub: 'Carrocería/hojalatería', tipo: 'hojalateria',
+  { k: 'choque', icon: 'car-front', label: 'Choqué', sub: 'Carrocería/hojalatería', tipo: 'hojalateria',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres de carrocería/hojalatería cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte el taller de carrocería/hojalatería más cercano.' },
-  { k: 'noarranca', label: '🔧 No arranca', sub: 'Mecánico o eléctrico', tipo: 'mecanico',
+  { k: 'noarranca', icon: 'battery-warning', label: 'No arranca', sub: 'Mecánico o eléctrico', tipo: 'mecanico',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte el taller más cercano.' },
-  { k: 'grua', label: '🚛 Necesito grúa', sub: 'Arrastre al taller o a tu casa', tipo: 'grua',
+  { k: 'grua', icon: 'truck', label: 'Necesito grúa', sub: 'Arrastre al taller o a tu casa', tipo: 'grua',
     buscar: 'Buscar grúas cercanas', resTitle: 'Grúas cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte la grúa más cercana.' },
-  { k: 'llantera', label: '🛞 Llantera', sub: 'Llantas, ponchadura, balanceo', tipo: 'llantera',
+  { k: 'llantera', icon: 'disc', label: 'Llantera', sub: 'Llantas, ponchadura, balanceo', tipo: 'llantera',
     buscar: 'Buscar llanteras cercanas', resTitle: 'Llanteras cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte la llantera más cercana.' },
-  { k: 'otro', label: '❓ Otro problema', sub: 'Descríbelo con tus palabras', tipo: 'otro',
+  { k: 'otro', icon: 'message-square-plus', label: 'Otro problema', sub: 'Descríbelo con tus palabras', tipo: 'otro',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres cerca de ti',
     datosNote: 'Descríbenos qué le pasa a tu carro para buscarte el taller adecuado.' },
-  { k: 'foquito', label: '💡 Se prendió un foquito', sub: 'Tómale foto al tablero y te digo qué es', tipo: 'foquito',
+  { k: 'foquito', icon: 'lightbulb', label: 'Se prendió un foquito', sub: 'Tómale foto al tablero y te digo qué es', tipo: 'foquito',
     buscar: 'Buscar taller ahora', resTitle: 'Talleres cerca de ti',
     datosNote: 'Solo ocupamos esto para buscarte el taller más cercano.' },
 ];
@@ -208,11 +220,17 @@ async function openNotifs() {
 const grid = document.getElementById('incidentGrid');
 INCIDENTS.forEach(inc => {
   const b = document.createElement('button');
-  b.className = 'big';
-  b.innerHTML = esc(inc.label) + '<small>' + esc(inc.sub) + '</small>';
+  // Diseño nuevo: rejilla 2x2 con tarjeta oscura e icono de línea;
+  // "Otro problema" y el foquito son tarjetas horizontales a lo ancho.
+  // El orden y la cantidad (6) no cambian: las pruebas pican por índice.
+  b.className = 'big' + ((inc.k === 'otro' || inc.k === 'foquito') ? ' wide' : '');
+  b.innerHTML = '<span class="inc-ico"><i data-lucide="' + esc(inc.icon) + '"></i></span>'
+    + '<span class="inc-txt"><b>' + esc(inc.label) + '</b><small>' + esc(inc.sub) + '</small></span>'
+    + '<span class="inc-chev"><i data-lucide="chevron-right"></i></span>';
   b.onclick = () => pickIncident(inc);
   grid.appendChild(b);
 });
+refreshIcons();
 
 // Recogida de la grúa: el enlace "Escribir la dirección a mano" se ata
 // aquí (no con onclick en el HTML, que jsdom no ejecuta en las pruebas).
@@ -276,7 +294,7 @@ function irADatos(inc) {
   // ubicación se esconde y la búsqueda va sin coordenadas.
   const conduzco = esConduzco();
   document.getElementById('locBox').style.display = conduzco ? 'none' : 'block';
-  document.getElementById('datosTitle').textContent = conduzco ? 'Tú llevas el carro al taller' : inc.label.replace(/^[^\s]+\s/, '') + ' — ¿Dónde estás?';
+  document.getElementById('datosTitle').textContent = conduzco ? 'Tú llevas el carro al taller' : sinEmoji(inc.label) + ' — ¿Dónde estás?';
   document.getElementById('datosNote').textContent = conduzco ? 'Te mostramos los talleres disponibles; tú eliges a cuál llevar tu carro.' : inc.datosNote;
   document.getElementById('buscarBtn').textContent = inc.buscar;
   document.getElementById('otroBox').style.display = (inc.k === 'otro') ? 'block' : 'none';
@@ -369,15 +387,16 @@ function pickChoqueModo(modo) {
 
 /* ---------- Modos de ayuda al chocar ---------- */
 const CHOQUE_MODOS = [
-  { k: 'lugar', label: '📍 Necesito asistencia/presupuesto en el lugar del percance', tag: 'URGENTE' },
-  { k: 'conduzco', label: '🚗 Necesito un presupuesto (yo conduzco el auto hasta el taller)', tag: null },
-  { k: 'domicilio', label: '🏠 Necesito un presupuesto a domicilio', tag: null },
+  { k: 'lugar', icon: 'map-pin', label: 'Necesito asistencia/presupuesto en el lugar del percance', tag: 'URGENTE' },
+  { k: 'conduzco', icon: 'car-front', label: 'Necesito un presupuesto (yo conduzco el auto hasta el taller)', tag: null },
+  { k: 'domicilio', icon: 'home', label: 'Necesito un presupuesto a domicilio', tag: null },
 ];
 const modosGrid = document.getElementById('choqueModos');
 CHOQUE_MODOS.forEach(m => {
   const b = document.createElement('button');
-  b.className = 'big';
-  b.innerHTML = esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '');
+  b.className = 'big wide';
+  b.innerHTML = '<span class="inc-ico"><i data-lucide="' + esc(m.icon) + '"></i></span>'
+    + '<span class="inc-txt"><b>' + esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '') + '</b></span>';
   b.onclick = () => pickChoqueModo(m);
   modosGrid.appendChild(b);
 });
@@ -389,15 +408,16 @@ function pickMecanicoModo(modo) {
 
 /* ---------- Modos de ayuda al no arrancar ---------- */
 const MECANICO_MODOS = [
-  { k: 'lugar', label: '📍 Necesito un mecánico en mi ubicación actual', tag: 'URGENTE' },
-  { k: 'domicilio', label: '🏠 Asistencia mecánica a domicilio', tag: null },
-  { k: 'conduzco', label: '🚗 Puedo manejar el carro hasta el taller', tag: null },
+  { k: 'lugar', icon: 'map-pin', label: 'Necesito un mecánico en mi ubicación actual', tag: 'URGENTE' },
+  { k: 'domicilio', icon: 'home', label: 'Asistencia mecánica a domicilio', tag: null },
+  { k: 'conduzco', icon: 'car-front', label: 'Puedo manejar el carro hasta el taller', tag: null },
 ];
 const mecanicoGrid = document.getElementById('mecanicoModos');
 MECANICO_MODOS.forEach(m => {
   const b = document.createElement('button');
-  b.className = 'big';
-  b.innerHTML = esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '');
+  b.className = 'big wide';
+  b.innerHTML = '<span class="inc-ico"><i data-lucide="' + esc(m.icon) + '"></i></span>'
+    + '<span class="inc-txt"><b>' + esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '') + '</b></span>';
   b.onclick = () => pickMecanicoModo(m);
   mecanicoGrid.appendChild(b);
 });
@@ -409,17 +429,19 @@ function pickLlanteraModo(modo) {
 
 /* ---------- Modos de ayuda de llantera ---------- */
 const LLANTERA_MODOS = [
-  { k: 'domicilio', label: '🏠 Llantera a domicilio', tag: null },
-  { k: 'cercana', label: '📍 Necesito la llantera más cercana', tag: null },
+  { k: 'domicilio', icon: 'home', label: 'Llantera a domicilio', tag: null },
+  { k: 'cercana', icon: 'map-pin', label: 'Necesito la llantera más cercana', tag: null },
 ];
 const llanteraGrid = document.getElementById('llanteraModos');
 LLANTERA_MODOS.forEach(m => {
   const b = document.createElement('button');
-  b.className = 'big';
-  b.innerHTML = esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '');
+  b.className = 'big wide';
+  b.innerHTML = '<span class="inc-ico"><i data-lucide="' + esc(m.icon) + '"></i></span>'
+    + '<span class="inc-txt"><b>' + esc(m.label) + (m.tag ? ' <span class="badge red">' + esc(m.tag) + '</span>' : '') + '</b></span>';
   b.onclick = () => pickLlanteraModo(m);
   llanteraGrid.appendChild(b);
 });
+refreshIcons();
 
 /* ---------- Carros guardados (hasta 3) ---------- */
 function getCarros() {
@@ -436,7 +458,8 @@ function renderCarroPicker() {
   carros.forEach(c => {
     const b = document.createElement('button');
     b.className = 'big';
-    b.innerHTML = '🚗 ' + esc(carroLabel(c)) + '<small>Pica este carro</small>';
+    b.innerHTML = '<span class="inc-ico"><i data-lucide="car-front"></i></span>'
+      + '<span class="inc-txt"><b>' + esc(carroLabel(c)) + '</b><small>Pica este carro</small></span>';
     b.onclick = () => {
       picker.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
       b.classList.add('sel');
@@ -447,7 +470,8 @@ function renderCarroPicker() {
   });
   const otro = document.createElement('button');
   otro.className = 'big';
-  otro.innerHTML = '✏️ Otro carro<small>Escribir marca y modelo</small>';
+  otro.innerHTML = '<span class="inc-ico"><i data-lucide="pencil"></i></span>'
+    + '<span class="inc-txt"><b>Otro carro</b><small>Escribir marca y modelo</small></span>';
   otro.onclick = () => {
     picker.querySelectorAll('button').forEach(x => x.classList.remove('sel'));
     otro.classList.add('sel');
@@ -456,6 +480,7 @@ function renderCarroPicker() {
   };
   picker.appendChild(otro);
   picker.querySelector('button').classList.add('sel');
+  refreshIcons();
   carroElegido = carros[0];
 }
 function addCarro() {
@@ -535,16 +560,24 @@ async function saveUser() {
 }
 
 /* ---------- Pantalla 2: ubicación y foto ---------- */
+// La línea de ubicación vive en dos sitios: el pill de datos (#locLine)
+// y el pill del inicio (#locPillAddr). Este helper las mantiene iguales.
+function ponerLocLine(txt) {
+  const line = document.getElementById('locLine');
+  if (line) line.textContent = txt;
+  const pill = document.getElementById('locPillAddr');
+  if (pill) pill.textContent = txt;
+}
 function useLocation() {
   if (!navigator.geolocation) {
-    document.getElementById('locLine').textContent = 'Tu teléfono no permite ubicación. Buscamos con la zona de Ensenada.';
+    ponerLocLine('Tu teléfono no permite ubicación. Buscamos con la zona de Ensenada.');
     return;
   }
-  document.getElementById('locLine').textContent = 'Buscando tu ubicación…';
+  ponerLocLine('Buscando tu ubicación…');
   navigator.geolocation.getCurrentPosition(
     pos => {
       lat = pos.coords.latitude; lng = pos.coords.longitude;
-      document.getElementById('locLine').textContent = '📍 Ubicación lista ✓';
+      ponerLocLine('📍 Ubicación lista ✓');
       toast('Ubicación lista ✓');
       ponerMarcadorYo();
       // Si está en la pantalla de la grúa, el botón SIEMPRE vuelve a
@@ -572,7 +605,7 @@ function useLocation() {
       }
     },
     () => {
-      document.getElementById('locLine').textContent = 'No pudimos tomar tu ubicación. Buscamos con la zona de Ensenada.';
+      ponerLocLine('No pudimos tomar tu ubicación. Buscamos con la zona de Ensenada.');
     },
     { timeout: 8000 }
   );
@@ -583,6 +616,9 @@ function mostrarDireccionActual() {
   api('/api/reverse-geocode', { method: 'POST', body: { lat, lng } })
     .then(r => {
       line.innerHTML = '📍 Ubicación lista ✓<br><b style="color:#e8eef4">' + esc(r.direccion) + '</b>';
+      // La dirección real también va en el pill del inicio.
+      const pill = document.getElementById('locPillAddr');
+      if (pill) pill.textContent = r.direccion;
     })
     .catch(() => {
       // Sin dirección escrita (sin internet), queda el "Ubicación lista ✓".
@@ -734,11 +770,11 @@ async function searchShops() {
     }
     const carro = carroElegido || carroManual();
     const carroTxt = carro ? ' · ' + carroLabel(carro) : '';
-    const modoTxt = (incident.k === 'choque' && choqueModo) ? ' · ' + choqueModo.label.replace(/^[^\s]+\s/, '')
-      : (incident.k === 'noarranca' && mecanicoModo) ? ' · ' + mecanicoModo.label.replace(/^[^\s]+\s/, '')
-      : (incident.k === 'llantera' && llanteraModo) ? ' · ' + llanteraModo.label.replace(/^[^\s]+\s/, '') : '';
+    const modoTxt = (incident.k === 'choque' && choqueModo) ? ' · ' + sinEmoji(choqueModo.label)
+      : (incident.k === 'noarranca' && mecanicoModo) ? ' · ' + sinEmoji(mecanicoModo.label)
+      : (incident.k === 'llantera' && llanteraModo) ? ' · ' + sinEmoji(llanteraModo.label) : '';
     const gruaTxt = (incident.k === 'grua' && gruaKm != null) ? ' · Traslado: ' + gruaKm.toFixed(1) + ' km' : '';
-    document.getElementById('resSub').textContent = desc + 'Para: ' + incident.label.replace(/^[^\s]+\s/, '') + carroTxt + modoTxt + gruaTxt + ' · Ensenada.';
+    document.getElementById('resSub').textContent = desc + 'Para: ' + sinEmoji(incident.label) + carroTxt + modoTxt + gruaTxt + ' · Ensenada.';
     document.getElementById('resHint').textContent = (incident.k === 'otro')
       ? '¿No te convence ninguno? Vuelve atrás y ajusta tu descripción.'
       : '¿No te convence ninguno? Pica “Otro problema” en el inicio y descríbelo.';
@@ -948,28 +984,28 @@ async function notifyShop(i) {
   let descripcion = '';
   if (incident && incident.k === 'otro') descripcion = document.getElementById('otroDesc').value.trim();
   else if (incident && incident.k === 'choque' && choqueModo) {
-    // El modo lleva un emoji al inicio (como los botones); se quita para
-    // el texto que ve el taller y el que sale en resultados.
-    const modoLabel = choqueModo.label.replace(/^[^\s]+\s/, '');
+    // El modo ya no lleva emoji al inicio (el icono es aparte);
+    // sinEmoji() deja el texto limpio para el taller.
+    const modoLabel = sinEmoji(choqueModo.label);
     descripcion = (choqueModo.tag ? choqueModo.tag + ': ' : '') + modoLabel;
     // Si el taller va al cliente (lugar del percance o domicilio), el
     // aviso lleva el costo por la visita que el taller puso en su panel.
     if (choqueModo.k !== 'conduzco') descripcion += (s.costoVisita != null ? ' (costo por la visita: $' + Number(s.costoVisita).toLocaleString('es-MX') + ' MXN)' : ' (costo por la visita a convenir)');
   }
   else if (incident && incident.k === 'noarranca' && mecanicoModo) {
-    // Igual que Choqué: se quita el emoji inicial del texto del taller.
+    // Igual que Choqué: el texto del taller va limpio (sinEmoji).
     // La asistencia fuera del taller (donde se quedó el carro o a
     // domicilio) SÍ lleva el costo por la visita que el taller puso en
     // su panel, igual que los presupuestos del carrocero.
-    const modoLabel = mecanicoModo.label.replace(/^[^\s]+\s/, '');
+    const modoLabel = sinEmoji(mecanicoModo.label);
     descripcion = (mecanicoModo.tag ? mecanicoModo.tag + ': ' : '') + modoLabel;
     if (mecanicoModo.k !== 'conduzco') descripcion += (s.costoVisita != null ? ' (costo por la visita: $' + Number(s.costoVisita).toLocaleString('es-MX') + ' MXN)' : ' (costo por la visita a convenir)');
   }
   else if (incident && incident.k === 'llantera' && llanteraModo) {
-    // Igual que los demás: se quita el emoji inicial del texto del taller.
+    // Igual que los demás: el texto del taller va limpio (sinEmoji).
     // La llantera a domicilio SÍ lleva costo por la visita (decisión de
     // Orlan 2026-11-20 ~00:40), igual que el mecánico y el carrocero.
-    const modoLabel = llanteraModo.label.replace(/^[^\s]+\s/, '');
+    const modoLabel = sinEmoji(llanteraModo.label);
     descripcion = (llanteraModo.tag ? llanteraModo.tag + ': ' : '') + modoLabel;
     if (llanteraModo.k === 'domicilio') descripcion += (s.costoVisita != null ? ' (costo por la visita: $' + Number(s.costoVisita).toLocaleString('es-MX') + ' MXN)' : ' (costo por la visita a convenir)');
   }
@@ -1227,7 +1263,7 @@ async function generarCodigo() {
     const d = await api('/api/invite-code-create', { method: 'POST', body: { note: document.getElementById('codigoNota').value.trim() } });
     const box = document.getElementById('codigoNuevo');
     box.style.display = 'block';
-    box.innerHTML = '<div class="card" style="cursor:default; border:2px solid #f5b301;">' +
+    box.innerHTML = '<div class="card" style="cursor:default; border:2px solid #F59E0B;">' +
       '<h3 style="font-size:24px; letter-spacing:1px;">' + esc(d.codigo.code) + '</h3>' +
       '<div class="meta">Entrégaselo al taller en persona. Solo sirve una vez.</div>' +
       '<button class="primary" onclick="copiarCodigo(\'' + esc(d.codigo.code) + '\')">Copiar código</button></div>';
@@ -1281,6 +1317,15 @@ function initCarrusel() {
 /* ---------- Inicio ---------- */
 (async function init() {
   initCarrusel();
+  refreshIcons();
+  // Botón 911 (diseño nuevo): al picarlo pide confirmación antes de
+  // marcar; Cancelar o picar fuera del cuadro lo cierra sin llamar.
+  const e911 = document.getElementById('emerg911Btn');
+  if (e911) e911.onclick = () => { document.getElementById('emergModal').style.display = 'flex'; };
+  const eCancel = document.getElementById('emergCancelBtn');
+  if (eCancel) eCancel.onclick = () => { document.getElementById('emergModal').style.display = 'none'; };
+  const eModal = document.getElementById('emergModal');
+  if (eModal) eModal.onclick = (ev) => { if (ev.target === eModal) eModal.style.display = 'none'; };
   await loadFocos();
   if (getToken()) {
     try {
