@@ -128,6 +128,7 @@ async function doAuth() {
         body.tieneGrua = document.getElementById('aGrua').checked;
         body.aDomicilio = document.getElementById('aDomicilio').checked;
         body.plan = document.getElementById('aPlan').value;
+        body.inviteCode = document.getElementById('aCodigo').value.trim();
       }
       data = await api('/api/auth-register', { method: 'POST', body });
     }
@@ -145,6 +146,7 @@ async function afterLogin() {
     user = st.user; workshop = st.workshop || null;
   } catch (_) { /* si falla, se sigue con lo que se tiene */ }
   document.getElementById('panelLink').style.display = (user && user.role === 'workshop') ? 'block' : 'none';
+  document.getElementById('codigosLink').style.display = (user && user.isOwner) ? 'block' : 'none';
   document.getElementById('savedLine').textContent = user ? ('Hola, ' + user.name.split(' ')[0] + ' ✓') : '';
   await refreshBell();
   show('p-home');
@@ -152,6 +154,7 @@ async function afterLogin() {
 function logout(silent) {
   localStorage.removeItem(TOKEN_KEY);
   user = null; workshop = null; profile = null;
+  document.getElementById('codigosLink').style.display = 'none';
   if (!silent) toast('Sesión cerrada');
   setAuthMode('login');
   show('p-auth');
@@ -710,6 +713,68 @@ async function togglePausa() {
   } catch (e) { toast(e.message); }
 }
 
+/* ---------- Pantalla: códigos de invitación (dueño) ---------- */
+async function openCodigos() {
+  if (!user || !user.isOwner) { toast('Solo el dueño puede hacer esto.'); return; }
+  await refreshCodigos();
+  show('p-codigos');
+}
+async function refreshCodigos() {
+  try {
+    const d = await api('/api/invite-codes-list');
+    const list = document.getElementById('codigosList');
+    list.innerHTML = '';
+    if (!d.codigos.length) {
+      list.innerHTML = '<p class="calm">Todavía no has generado ningún código.</p>';
+      return;
+    }
+    d.codigos.forEach(c => {
+      const div = document.createElement('div');
+      div.className = 'card'; div.style.cursor = 'default';
+      const estado = c.usado
+        ? '<span class="badge">USADO por ' + esc(c.usedByName || 'un taller') + (c.usedAt ? ' · ' + new Date(c.usedAt).toLocaleDateString('es-MX') : '') + '</span>'
+        : '<span class="badge prem">DISPONIBLE</span>';
+      div.innerHTML = '<h3>' + esc(c.code) + ' ' + estado + '</h3>' +
+        '<div class="meta">' + (c.note ? esc(c.note) + '<br>' : '') +
+        'Creado: ' + new Date(c.createdAt).toLocaleDateString('es-MX') + '</div>' +
+        '<div class="actions">' +
+        '<button class="ghost" style="flex:1;" onclick="copiarCodigo(\'' + esc(c.code) + '\')">Copiar</button>' +
+        (c.usado ? '' : '<button class="ghost" style="flex:1;" onclick="desactivarCodigo(\'' + esc(c.code) + '\')">Desactivar</button>') +
+        '</div>';
+      list.appendChild(div);
+    });
+  } catch (e) { toast(e.message); }
+}
+async function generarCodigo() {
+  try {
+    const d = await api('/api/invite-code-create', { method: 'POST', body: { note: document.getElementById('codigoNota').value.trim() } });
+    const box = document.getElementById('codigoNuevo');
+    box.style.display = 'block';
+    box.innerHTML = '<div class="card" style="cursor:default; border:2px solid #f5b301;">' +
+      '<h3 style="font-size:24px; letter-spacing:1px;">' + esc(d.codigo.code) + '</h3>' +
+      '<div class="meta">Entrégaselo al taller en persona. Solo sirve una vez.</div>' +
+      '<button class="primary" onclick="copiarCodigo(\'' + esc(d.codigo.code) + '\')">Copiar código</button></div>';
+    document.getElementById('codigoNota').value = '';
+    await refreshCodigos();
+  } catch (e) { toast(e.message); }
+}
+async function copiarCodigo(code) {
+  try {
+    await navigator.clipboard.writeText(code);
+    toast('Código copiado ✓');
+  } catch (_) {
+    toast(code);
+  }
+}
+async function desactivarCodigo(code) {
+  if (!window.confirm('¿Desactivar el código ' + code + '? Ya no servirá para registrarse.')) return;
+  try {
+    await api('/api/invite-code-deactivate', { method: 'POST', body: { code } });
+    toast('Código desactivado');
+    await refreshCodigos();
+  } catch (e) { toast(e.message); }
+}
+
 /* ---------- Inicio ---------- */
 (async function init() {
   await loadFocos();
@@ -723,6 +788,7 @@ async function togglePausa() {
           profile = d.profile;
         } catch (_) {}
         document.getElementById('panelLink').style.display = (user.role === 'workshop') ? 'block' : 'none';
+        document.getElementById('codigosLink').style.display = (user.isOwner) ? 'block' : 'none';
         document.getElementById('savedLine').textContent = 'Hola, ' + user.name.split(' ')[0] + ' ✓';
         await refreshBell();
         show('p-home');
